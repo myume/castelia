@@ -9,7 +9,7 @@ async fn main() -> anyhow::Result<()> {
     let app = routes::router().layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    info!("Listing on {}", listener.local_addr()?);
+    info!("Listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app).await?;
 
