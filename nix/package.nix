@@ -3,24 +3,18 @@
   lib,
 }:
 rustPlatform.buildRustPackage {
-  pname = "package";
+  pname = "castelia";
   version = "0.1.0";
 
   src = ../.;
   cargoLock.lockFile = ../Cargo.lock;
 
-  buildInputs = [
-  ];
+  buildInputs = [];
 
   meta = {
-    description = "A program that does something";
-    longDescription = ''
-      Let's hope this program continues to do that something,
-      forever.
-    '';
-    homepage = "https://example.com";
-    license = lib.licenses.mit;
-    maintainers = with lib.maintainers; [you];
+    description = "Self-hosted video broadcasting software";
+    license = lib.licenses.agpl3Only;
+    maintainers = with lib.maintainers; [myume];
     platforms = lib.platforms.all;
   };
 }
