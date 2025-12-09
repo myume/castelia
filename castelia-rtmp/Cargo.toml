@@ -1,0 +1,9 @@
+[package]
+name = "castelia-rtmp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
