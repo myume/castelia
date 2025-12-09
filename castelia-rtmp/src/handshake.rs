@@ -23,6 +23,8 @@ use tracing::trace;
 /// - 1528 byte echo field
 const HANDSHAKE_CHUNK_SIZE: usize = 4 + 4 + 1528;
 
+const RTMP_VERSION: u8 = 0x03;
+
 #[derive(Error, Debug)]
 pub enum HandshakeError {
     #[error("RTMP version provided by client is unsupported")]
@@ -31,7 +33,7 @@ pub enum HandshakeError {
     ReadError(#[source] io::Error),
     #[error("Failed to write to socket")]
     WriteError(#[source] io::Error),
-    #[error("{0}")]
+    #[error("Invalid handshake: {0}")]
     InvalidHandshake(String),
 }
 
@@ -49,20 +51,63 @@ impl From<HandshakeError> for io::Error {
 /// Performs a RTMP handshake on the provided socket
 pub async fn handshake(mut socket: TcpStream) -> Result<(), HandshakeError> {
     // Read C0
-    let version = socket.read_u8().await.map_err(HandshakeError::ReadError)?;
-    trace!("RTMP version: {version}");
-    if version != 3 {
-        return Err(HandshakeError::UnsupportedVersion);
-    }
+    read_c0(&mut socket).await?;
+    trace!("Read C0");
 
     let mut client_buf = [0; HANDSHAKE_CHUNK_SIZE];
+    let mut server_buf = [0; 1 + HANDSHAKE_CHUNK_SIZE];
 
-    // Read C1
-    read_chunk(&mut socket, &mut client_buf).await?;
-    let read_timestamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| {
-        HandshakeError::InvalidHandshake("Could not generate timestamp for handshake".into())
-    })?;
+    read_c1(&mut socket, &mut client_buf).await?;
+    let read_timestamp = get_timestamp()?;
     trace!("Read C1");
+
+    send_s0_s1(&mut socket, &mut server_buf).await?;
+    trace!("Sent S0 and S1");
+
+    send_s2(&mut socket, &mut client_buf, &read_timestamp).await?;
+    trace!("Sent S2");
+
+    // Read C2
+    read_c2(
+        &mut socket,
+        server_buf[1..].try_into().map_err(|_| {
+            // should never happen...
+            HandshakeError::InvalidHandshake("Could not cast S1 into correct size".into())
+        })?,
+        &mut client_buf,
+    )
+    .await?;
+    trace!("Read C2");
+
+    Ok(())
+}
+
+async fn read_chunk(
+    socket: &mut TcpStream,
+    buf: &mut [u8; HANDSHAKE_CHUNK_SIZE],
+) -> Result<(), HandshakeError> {
+    let mut total_bytes_read = 0;
+    while total_bytes_read < HANDSHAKE_CHUNK_SIZE {
+        total_bytes_read += socket.read(buf).await.map_err(HandshakeError::ReadError)?;
+    }
+
+    Ok(())
+}
+
+async fn read_c0(socket: &mut TcpStream) -> Result<(), HandshakeError> {
+    let version = socket.read_u8().await.map_err(HandshakeError::ReadError)?;
+    trace!("RTMP version: {version}");
+    if version != RTMP_VERSION {
+        return Err(HandshakeError::UnsupportedVersion);
+    }
+    Ok(())
+}
+
+async fn read_c1(
+    socket: &mut TcpStream,
+    client_buf: &mut [u8; HANDSHAKE_CHUNK_SIZE],
+) -> Result<(), HandshakeError> {
+    read_chunk(socket, client_buf).await?;
     let zeroes = &client_buf[4..8];
     if !zeroes.iter().all(|x| *x == 0) {
         return Err(HandshakeError::InvalidHandshake(
@@ -70,35 +115,50 @@ pub async fn handshake(mut socket: TcpStream) -> Result<(), HandshakeError> {
         ));
     }
 
-    // Send S0 and S1
-    let mut server_buf = [0; 1 + HANDSHAKE_CHUNK_SIZE];
-    server_buf[0] = 0x03;
-    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| {
-        HandshakeError::InvalidHandshake("Could not generate timestamp for handshake".into())
-    })?;
-    server_buf[1..5].copy_from_slice(&timestamp.as_secs().to_be_bytes()[4..8]);
+    Ok(())
+}
+
+async fn send_s0_s1(
+    socket: &mut TcpStream,
+    server_buf: &mut [u8; 1 + HANDSHAKE_CHUNK_SIZE],
+) -> Result<(), HandshakeError> {
+    // send version along
+    server_buf[0] = RTMP_VERSION;
+
+    // timestamp
+    server_buf[1..5].copy_from_slice(&get_timestamp()?);
+
+    // random data
     for i in &mut server_buf[9..] {
         *i = rand::random();
     }
 
     socket
-        .write_all(&server_buf)
+        .write_all(server_buf)
         .await
-        .map_err(HandshakeError::WriteError)?;
-    trace!("Sent S0 and S1");
+        .map_err(HandshakeError::WriteError)
+}
 
-    // Send S2 (echo C1)
-    client_buf[4..8].copy_from_slice(&read_timestamp.as_secs().to_be_bytes()[4..8]);
+async fn send_s2(
+    socket: &mut TcpStream,
+    c1: &mut [u8; HANDSHAKE_CHUNK_SIZE],
+    read_timestamp: &[u8; 4],
+) -> Result<(), HandshakeError> {
+    c1[4..8].copy_from_slice(read_timestamp);
     socket
-        .write_all(&client_buf)
+        .write_all(c1)
         .await
         .map_err(HandshakeError::WriteError)?;
-    trace!("Sent S2");
 
-    // Read C2
-    read_chunk(&mut socket, &mut client_buf).await?;
-    trace!("Read C2");
-    let s1 = &server_buf[1..];
+    Ok(())
+}
+
+async fn read_c2(
+    socket: &mut TcpStream,
+    s1: &[u8; HANDSHAKE_CHUNK_SIZE],
+    client_buf: &mut [u8; HANDSHAKE_CHUNK_SIZE],
+) -> Result<(), HandshakeError> {
+    read_chunk(socket, client_buf).await?;
     if client_buf[..4] != s1[..4] {
         return Err(HandshakeError::InvalidHandshake(
             "Echoed timestamp does not match".into(),
@@ -110,16 +170,21 @@ pub async fn handshake(mut socket: TcpStream) -> Result<(), HandshakeError> {
             "Random echo does not match".into(),
         ));
     }
-    trace!("Verified echo");
 
     Ok(())
 }
 
-async fn read_chunk(socket: &mut TcpStream, buf: &mut [u8]) -> Result<(), HandshakeError> {
-    let mut total_bytes_read = 0;
-    while total_bytes_read < HANDSHAKE_CHUNK_SIZE {
-        total_bytes_read += socket.read(buf).await.map_err(HandshakeError::ReadError)?;
-    }
+fn get_timestamp() -> Result<[u8; 4], HandshakeError> {
+    let bytes = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| {
+            HandshakeError::InvalidHandshake(
+                "Could not generate timestamp for handshake, clock may have gone backwards".into(),
+            )
+        })?
+        .as_millis()
+        .to_be_bytes();
 
-    Ok(())
+    // u128 is 16 bytes, it is safe to take the last 4
+    Ok([bytes[12], bytes[13], bytes[14], bytes[15]])
 }
