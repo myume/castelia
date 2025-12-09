@@ -1,9 +1,9 @@
 use std::io;
 
 use tokio::net::{TcpListener, TcpStream};
-use tracing::trace;
+use tracing::{error, trace};
 
-use crate::handshake;
+use crate::handshake::handshake;
 
 pub struct RTMPSever {
     listener: TcpListener,
@@ -20,12 +20,16 @@ impl RTMPSever {
             trace!("Accepted connection from {addr}");
 
             tokio::spawn(async move {
-                process(socket).await;
+                if let Err(e) = process(socket).await {
+                    error!("Failed to process rtmp connection: {e}");
+                }
             });
         }
     }
 }
 
-async fn process(socket: TcpStream) {
-    handshake::handshake(socket).await;
+async fn process(socket: TcpStream) -> io::Result<()> {
+    handshake(socket).await?;
+
+    Ok(())
 }
