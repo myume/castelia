@@ -91,6 +91,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "castelia-ingest"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "castelia-rtmp",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "castelia-rtmp"
 version = "0.1.0"
 dependencies = [
