@@ -27,8 +27,8 @@ const RTMP_VERSION: u8 = 0x03;
 
 #[derive(Error, Debug)]
 pub enum HandshakeError {
-    #[error("RTMP version provided by client is unsupported")]
-    UnsupportedVersion,
+    #[error("RTMP version {0} is unsupported")]
+    UnsupportedVersion(u8),
     #[error("Failed to read from socket")]
     ReadError(#[source] io::Error),
     #[error("Failed to write to socket")]
@@ -40,7 +40,9 @@ pub enum HandshakeError {
 impl From<HandshakeError> for io::Error {
     fn from(value: HandshakeError) -> Self {
         match value {
-            HandshakeError::UnsupportedVersion => io::Error::new(io::ErrorKind::Unsupported, value),
+            HandshakeError::UnsupportedVersion(_) => {
+                io::Error::new(io::ErrorKind::Unsupported, value)
+            }
             HandshakeError::InvalidHandshake(s) => io::Error::new(io::ErrorKind::InvalidData, s),
             HandshakeError::ReadError(ref error) => io::Error::new(error.kind(), value),
             HandshakeError::WriteError(ref error) => io::Error::new(error.kind(), value),
@@ -49,8 +51,8 @@ impl From<HandshakeError> for io::Error {
 }
 
 /// Performs a RTMP handshake on the provided socket
+/// Returns [`Ok`] if handshake succeeded, otherwise returns the error
 pub async fn handshake(mut socket: TcpStream) -> Result<(), HandshakeError> {
-    // Read C0
     read_c0(&mut socket).await?;
     trace!("Read C0");
 
@@ -67,7 +69,6 @@ pub async fn handshake(mut socket: TcpStream) -> Result<(), HandshakeError> {
     send_s2(&mut socket, &mut client_buf, &read_timestamp).await?;
     trace!("Sent S2");
 
-    // Read C2
     read_c2(
         &mut socket,
         server_buf[1..].try_into().map_err(|_| {
@@ -98,7 +99,7 @@ async fn read_c0(socket: &mut TcpStream) -> Result<(), HandshakeError> {
     let version = socket.read_u8().await.map_err(HandshakeError::ReadError)?;
     trace!("RTMP version: {version}");
     if version != RTMP_VERSION {
-        return Err(HandshakeError::UnsupportedVersion);
+        return Err(HandshakeError::UnsupportedVersion(version));
     }
     Ok(())
 }
@@ -167,7 +168,7 @@ async fn read_c2(
 
     if client_buf[8..] != s1[8..] {
         return Err(HandshakeError::InvalidHandshake(
-            "Random echo does not match".into(),
+            "Random data echo does not match".into(),
         ));
     }
 
@@ -187,4 +188,137 @@ fn get_timestamp() -> Result<[u8; 4], HandshakeError> {
 
     // u128 is 16 bytes, it is safe to take the last 4
     Ok([bytes[12], bytes[13], bytes[14], bytes[15]])
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::net::TcpListener;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_handshake() {
+        let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut client = TcpStream::connect(server.local_addr().unwrap())
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            client.write_u8(3).await.unwrap();
+
+            // send all zeroes as a mock value
+            let mut buf = [0; HANDSHAKE_CHUNK_SIZE];
+            client.write_all(&buf).await.unwrap();
+
+            assert_eq!(client.read_u8().await.unwrap(), 3);
+            client.read_exact(&mut buf).await.unwrap();
+
+            // check that the timestamp's been set to *something*
+            assert_ne!(buf[..4], [0, 0, 0, 0]);
+
+            assert_eq!(buf[4..8], [0, 0, 0, 0]);
+
+            client.write_all(&buf).await.unwrap();
+        });
+
+        let (stream, _) = server.accept().await.unwrap();
+
+        let result = handshake(stream).await;
+        assert!(result.is_ok(), "Handshake failed with error: {:#?}", result);
+    }
+
+    #[tokio::test]
+    async fn test_unsupported_version() {
+        let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut client = TcpStream::connect(server.local_addr().unwrap())
+            .await
+            .unwrap();
+
+        let (stream, _) = server.accept().await.unwrap();
+        client.write_u8(1).await.unwrap();
+
+        assert_eq!(
+            handshake(stream).await.unwrap_err().to_string(),
+            "RTMP version 1 is unsupported"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_c1_not_zeroed() {
+        let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut client = TcpStream::connect(server.local_addr().unwrap())
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            client.write_u8(3).await.unwrap();
+
+            let mut buf = [0; HANDSHAKE_CHUNK_SIZE];
+            buf[4] = 1;
+            client.write_all(&buf).await.unwrap();
+        });
+
+        let (stream, _) = server.accept().await.unwrap();
+
+        assert_eq!(
+            handshake(stream).await.unwrap_err().to_string(),
+            "Invalid handshake: Zeroes field in handshake must be all zeroes"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_c2_different_timestamp() {
+        let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut client = TcpStream::connect(server.local_addr().unwrap())
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            client.write_u8(3).await.unwrap();
+
+            let mut buf = [0; HANDSHAKE_CHUNK_SIZE];
+            client.write_all(&buf).await.unwrap();
+
+            client.read_u8().await.unwrap();
+            client.read_exact(&mut buf).await.unwrap();
+
+            buf[1] ^= 1; // guaranteed to be different
+            client.write_all(&buf).await.unwrap();
+        });
+
+        let (stream, _) = server.accept().await.unwrap();
+
+        assert_eq!(
+            handshake(stream).await.unwrap_err().to_string(),
+            "Invalid handshake: Echoed timestamp does not match"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_c2_different_random_data() {
+        let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut client = TcpStream::connect(server.local_addr().unwrap())
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            client.write_u8(3).await.unwrap();
+
+            let mut buf = [0; HANDSHAKE_CHUNK_SIZE];
+            client.write_all(&buf).await.unwrap();
+
+            client.read_u8().await.unwrap();
+            client.read_exact(&mut buf).await.unwrap();
+
+            buf[8] ^= 1; // guaranteed to be different
+            client.write_all(&buf).await.unwrap();
+        });
+
+        let (stream, _) = server.accept().await.unwrap();
+
+        assert_eq!(
+            handshake(stream).await.unwrap_err().to_string(),
+            "Invalid handshake: Random data echo does not match"
+        );
+    }
 }
