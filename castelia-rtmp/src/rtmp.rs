@@ -1,9 +1,12 @@
 use std::io;
 
-use tokio::net::{TcpListener, TcpStream};
+use tokio::{
+    io::BufReader,
+    net::{TcpListener, TcpStream},
+};
 use tracing::{error, trace};
 
-use crate::handshake::handshake;
+use crate::{chunks::Chunk, handshake::handshake};
 
 pub struct RTMPSever {
     listener: TcpListener,
@@ -19,8 +22,9 @@ impl RTMPSever {
             let (socket, addr) = self.listener.accept().await?;
             trace!("Accepted connection from {addr}");
 
+            let mut connection = RTMPConnection::new(socket);
             tokio::spawn(async move {
-                if let Err(e) = process(socket).await {
+                if let Err(e) = connection.process().await {
                     error!("Failed to process rtmp connection: {e}");
                 }
             });
@@ -28,8 +32,21 @@ impl RTMPSever {
     }
 }
 
-async fn process(mut socket: TcpStream) -> io::Result<()> {
-    handshake(&mut socket).await?;
+struct RTMPConnection {
+    socket: TcpStream,
+}
 
-    Ok(())
+impl RTMPConnection {
+    pub fn new(socket: TcpStream) -> Self {
+        Self { socket }
+    }
+
+    async fn process(&mut self) -> io::Result<()> {
+        handshake(&mut self.socket).await?;
+
+        let mut reader = BufReader::new(&mut self.socket);
+        loop {
+            Chunk::read_chunk(&mut reader).await;
+        }
+    }
 }
