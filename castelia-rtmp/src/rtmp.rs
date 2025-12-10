@@ -46,7 +46,7 @@ impl RTMPConnection {
 
         let mut reader = BufReader::new(&mut self.socket);
         loop {
-            Chunk::read_chunk(&mut reader).await;
+            Chunk::read_chunk(&mut reader).await?;
         }
     }
 }
