@@ -6,6 +6,7 @@ use tokio::{
     net::TcpStream,
 };
 
+#[derive(Debug, PartialEq)]
 pub struct ChunkHeader {
     basic_header: BasicHeader,
     message_header: MessageHeader,
@@ -20,19 +21,20 @@ pub enum ParseChunkHeaderError {
         #[from]
         io::Error,
     ),
+    #[error("Invalid chunk type found: {0}")]
+    InvalidChunkType(u8),
 }
 
+#[derive(Debug, PartialEq)]
 enum MessageHeader {
     Type0 {
         timestamp: u32,
-
         message_length: u32,
         message_type_id: u8,
         message_stream_id: u32,
     },
     Type1 {
         timestamp_delta: u32,
-
         message_length: u32,
         message_type_id: u8,
     },
@@ -48,15 +50,94 @@ enum MessageHeader {
 //
 // We will revisit this if it's an issue.
 // We are trading some extra space for less conversions between bytes to a u32
+#[derive(Debug, PartialEq)]
 struct BasicHeader {
     chunk_type: u8,
     chunk_stream_id: u32,
 }
 
 impl MessageHeader {
-    async fn parse(reader: &mut BufReader<&mut TcpStream>) -> Result<Self, ParseChunkHeaderError> {
-        todo!()
+    pub fn has_extended_timestamp(&self) -> bool {
+        0xFFFFFF
+            == match *self {
+                MessageHeader::Type0 {
+                    timestamp,
+                    message_length: _,
+                    message_type_id: _,
+                    message_stream_id: _,
+                } => timestamp,
+                MessageHeader::Type1 {
+                    timestamp_delta,
+                    message_length: _,
+                    message_type_id: _,
+                } => timestamp_delta,
+                MessageHeader::Type2 { timestamp_delta } => timestamp_delta,
+                MessageHeader::Type3 => return false,
+            }
     }
+
+    async fn parse_type0(
+        reader: &mut BufReader<&mut TcpStream>,
+    ) -> Result<Self, ParseChunkHeaderError> {
+        let timestamp = read_3_be_bytes_to_u32(reader).await?;
+        let message_length = read_3_be_bytes_to_u32(reader).await?;
+        let message_type_id = reader.read_u8().await?;
+        let message_stream_id = reader.read_u32().await?;
+
+        Ok(Self::Type0 {
+            timestamp,
+            message_length,
+            message_type_id,
+            message_stream_id,
+        })
+    }
+
+    async fn parse_type1(
+        reader: &mut BufReader<&mut TcpStream>,
+    ) -> Result<Self, ParseChunkHeaderError> {
+        let timestamp_delta = read_3_be_bytes_to_u32(reader).await?;
+        let message_length = read_3_be_bytes_to_u32(reader).await?;
+        let message_type_id = reader.read_u8().await?;
+        Ok(Self::Type1 {
+            timestamp_delta,
+            message_length,
+            message_type_id,
+        })
+    }
+    async fn parse_type2(
+        reader: &mut BufReader<&mut TcpStream>,
+    ) -> Result<Self, ParseChunkHeaderError> {
+        Ok(Self::Type2 {
+            timestamp_delta: read_3_be_bytes_to_u32(reader).await?,
+        })
+    }
+    async fn parse_type3() -> Result<Self, ParseChunkHeaderError> {
+        Ok(Self::Type3)
+    }
+
+    async fn parse(
+        reader: &mut BufReader<&mut TcpStream>,
+        chunk_type: &u8,
+    ) -> Result<Self, ParseChunkHeaderError> {
+        match *chunk_type {
+            0 => Self::parse_type0(reader).await,
+            1 => Self::parse_type1(reader).await,
+            2 => Self::parse_type2(reader).await,
+            3 => Self::parse_type3().await,
+            e => Err(ParseChunkHeaderError::InvalidChunkType(e)),
+        }
+    }
+}
+
+pub async fn read_3_be_bytes_to_u32(
+    reader: &mut BufReader<&mut TcpStream>,
+) -> Result<u32, io::Error> {
+    Ok(u32::from_be_bytes([
+        0x00,
+        reader.read_u8().await?,
+        reader.read_u8().await?,
+        reader.read_u8().await?,
+    ]))
 }
 
 impl BasicHeader {
@@ -100,11 +181,17 @@ impl ChunkHeader {
         reader: &mut BufReader<&mut TcpStream>,
     ) -> Result<Self, ParseChunkHeaderError> {
         let basic_header = BasicHeader::parse(reader).await?;
-        let message_header = MessageHeader::parse(reader).await?;
+        let message_header = MessageHeader::parse(reader, &basic_header.chunk_type()).await?;
+        let extended_timestamp = if message_header.has_extended_timestamp() {
+            Some(reader.read_u32().await?)
+        } else {
+            None
+        };
+
         Ok(Self {
             basic_header,
             message_header,
-            extended_timestamp: None,
+            extended_timestamp,
         })
     }
 }
@@ -165,5 +252,105 @@ mod tests {
 
         assert_eq!(header.chunk_type(), 0);
         assert_eq!(header.chunk_stream_id(), 365);
+    }
+
+    #[tokio::test]
+    async fn test_3be_bytes_to_u32() {
+        let expected: u32 = rand::random();
+        let mut stream = setup(&expected.to_be_bytes()[1..]).await;
+        let mut reader = BufReader::new(&mut stream);
+
+        let result = read_3_be_bytes_to_u32(&mut reader)
+            .await
+            .expect("read should succeed");
+
+        assert_eq!(
+            result & 0xFFFFFF,
+            expected & 0xFFFFFF,
+            "found: {:#08x}, expected: {:#08x}",
+            result,
+            expected,
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_message_header_type3() {
+        let bytes = [0x01, 0x2d, 0x1];
+        let mut stream = setup(&bytes).await;
+        let mut reader = BufReader::new(&mut stream);
+        let header = MessageHeader::parse(&mut reader, &3)
+            .await
+            .expect("should return header");
+
+        assert_eq!(header, MessageHeader::Type3);
+        assert!(!header.has_extended_timestamp());
+    }
+
+    #[tokio::test]
+    async fn test_parse_message_header_type2() {
+        let bytes = [0x12, 0x34, 0x56];
+        let mut stream = setup(&bytes).await;
+        let mut reader = BufReader::new(&mut stream);
+        let header = MessageHeader::parse(&mut reader, &2)
+            .await
+            .expect("should return header");
+
+        assert_eq!(
+            header,
+            MessageHeader::Type2 {
+                timestamp_delta: 0x123456
+            }
+        );
+        assert!(!header.has_extended_timestamp());
+    }
+
+    #[tokio::test]
+    async fn test_parse_message_header_type1() {
+        let bytes = [
+            0x12, 0x34, 0x56, // delta
+            0x11, 0x22, 0x33, // length
+            0xcd, // message type id
+        ];
+        let mut stream = setup(&bytes).await;
+        let mut reader = BufReader::new(&mut stream);
+        let header = MessageHeader::parse(&mut reader, &1)
+            .await
+            .expect("should return header");
+
+        assert_eq!(
+            header,
+            MessageHeader::Type1 {
+                timestamp_delta: 0x123456,
+                message_length: 0x112233,
+                message_type_id: 0xcd
+            }
+        );
+        assert!(!header.has_extended_timestamp());
+    }
+
+    #[tokio::test]
+    async fn test_parse_message_header_type0() {
+        let bytes = [
+            0x12, 0x34, 0x56, // timestamp
+            0x11, 0x22, 0x33, // length
+            0xcd, // message type id
+            0x10, 0xab, 0xcd, 0xef, // message stream id
+        ];
+        let mut stream = setup(&bytes).await;
+        let mut reader = BufReader::new(&mut stream);
+        let header = MessageHeader::parse(&mut reader, &0)
+            .await
+            .expect("should return header");
+
+        assert_eq!(
+            header,
+            MessageHeader::Type0 {
+                timestamp: 0x123456,
+                message_length: 0x112233,
+                message_type_id: 0xcd,
+                message_stream_id: 0x10abcdef
+            }
+        );
+        assert!(!header.has_extended_timestamp());
     }
 }
