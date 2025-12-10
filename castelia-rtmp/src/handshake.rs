@@ -52,25 +52,25 @@ impl From<HandshakeError> for io::Error {
 
 /// Performs a RTMP handshake on the provided socket
 /// Returns [`Ok`] if handshake succeeded, otherwise returns the error
-pub async fn handshake(mut socket: TcpStream) -> Result<(), HandshakeError> {
-    read_c0(&mut socket).await?;
+pub async fn handshake(socket: &mut TcpStream) -> Result<(), HandshakeError> {
+    read_c0(socket).await?;
     trace!("Read C0");
 
     let mut client_buf = [0; HANDSHAKE_CHUNK_SIZE];
     let mut server_buf = [0; 1 + HANDSHAKE_CHUNK_SIZE];
 
-    read_c1(&mut socket, &mut client_buf).await?;
+    read_c1(socket, &mut client_buf).await?;
     let read_timestamp = get_timestamp()?;
     trace!("Read C1");
 
-    send_s0_s1(&mut socket, &mut server_buf).await?;
+    send_s0_s1(socket, &mut server_buf).await?;
     trace!("Sent S0 and S1");
 
-    send_s2(&mut socket, &mut client_buf, &read_timestamp).await?;
+    send_s2(socket, &mut client_buf, &read_timestamp).await?;
     trace!("Sent S2");
 
     read_c2(
-        &mut socket,
+        socket,
         server_buf[1..].try_into().map_err(|_| {
             // should never happen...
             HandshakeError::InvalidHandshake("Could not cast S1 into correct size".into())
@@ -221,9 +221,9 @@ mod tests {
             client.write_all(&buf).await.unwrap();
         });
 
-        let (stream, _) = server.accept().await.unwrap();
+        let (mut stream, _) = server.accept().await.unwrap();
 
-        let result = handshake(stream).await;
+        let result = handshake(&mut stream).await;
         assert!(result.is_ok(), "Handshake failed with error: {:#?}", result);
     }
 
@@ -234,11 +234,11 @@ mod tests {
             .await
             .unwrap();
 
-        let (stream, _) = server.accept().await.unwrap();
+        let (mut stream, _) = server.accept().await.unwrap();
         client.write_u8(1).await.unwrap();
 
         assert_eq!(
-            handshake(stream).await.unwrap_err().to_string(),
+            handshake(&mut stream).await.unwrap_err().to_string(),
             "RTMP version 1 is unsupported"
         );
     }
@@ -258,10 +258,10 @@ mod tests {
             client.write_all(&buf).await.unwrap();
         });
 
-        let (stream, _) = server.accept().await.unwrap();
+        let (mut stream, _) = server.accept().await.unwrap();
 
         assert_eq!(
-            handshake(stream).await.unwrap_err().to_string(),
+            handshake(&mut stream).await.unwrap_err().to_string(),
             "Invalid handshake: Zeroes field in handshake must be all zeroes"
         );
     }
@@ -286,10 +286,10 @@ mod tests {
             client.write_all(&buf).await.unwrap();
         });
 
-        let (stream, _) = server.accept().await.unwrap();
+        let (mut stream, _) = server.accept().await.unwrap();
 
         assert_eq!(
-            handshake(stream).await.unwrap_err().to_string(),
+            handshake(&mut stream).await.unwrap_err().to_string(),
             "Invalid handshake: Echoed timestamp does not match"
         );
     }
@@ -314,10 +314,10 @@ mod tests {
             client.write_all(&buf).await.unwrap();
         });
 
-        let (stream, _) = server.accept().await.unwrap();
+        let (mut stream, _) = server.accept().await.unwrap();
 
         assert_eq!(
-            handshake(stream).await.unwrap_err().to_string(),
+            handshake(&mut stream).await.unwrap_err().to_string(),
             "Invalid handshake: Random data echo does not match"
         );
     }

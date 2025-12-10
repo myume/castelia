@@ -28,8 +28,8 @@ impl RTMPSever {
     }
 }
 
-async fn process(socket: TcpStream) -> io::Result<()> {
-    handshake(socket).await?;
+async fn process(mut socket: TcpStream) -> io::Result<()> {
+    handshake(&mut socket).await?;
 
     Ok(())
 }
