@@ -53,21 +53,22 @@ impl From<HandshakeError> for io::Error {
 /// Performs a RTMP handshake on the provided socket
 /// Returns [`Ok`] if handshake succeeded, otherwise returns the error
 pub async fn handshake(socket: &mut TcpStream) -> Result<(), HandshakeError> {
+    trace!("starting handshake");
     read_c0(socket).await?;
-    trace!("Read C0");
+    trace!("read c0");
 
     let mut client_buf = [0; HANDSHAKE_CHUNK_SIZE];
     let mut server_buf = [0; 1 + HANDSHAKE_CHUNK_SIZE];
 
     read_c1(socket, &mut client_buf).await?;
     let read_timestamp = get_timestamp()?;
-    trace!("Read C1");
+    trace!("read c1");
 
     send_s0_s1(socket, &mut server_buf).await?;
-    trace!("Sent S0 and S1");
+    trace!("sent s0 and s1");
 
     send_s2(socket, &mut client_buf, &read_timestamp).await?;
-    trace!("Sent S2");
+    trace!("sent s2");
 
     read_c2(
         socket,
@@ -78,8 +79,9 @@ pub async fn handshake(socket: &mut TcpStream) -> Result<(), HandshakeError> {
         &mut client_buf,
     )
     .await?;
-    trace!("Read C2");
+    trace!("read c2");
 
+    trace!("completed handshake");
     Ok(())
 }
 
