@@ -130,9 +130,7 @@ async fn send_s0_s1(
     server_buf[1..5].copy_from_slice(&get_timestamp()?);
 
     // random data
-    for i in &mut server_buf[9..] {
-        *i = rand::random();
-    }
+    rand::fill(&mut server_buf[9..]);
 
     socket
         .write_all(server_buf)
