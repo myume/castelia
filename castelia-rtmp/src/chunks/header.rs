@@ -5,6 +5,7 @@ use tokio::{
     io::{AsyncReadExt, BufReader},
     net::TcpStream,
 };
+use tracing::trace;
 
 #[derive(Debug, PartialEq)]
 pub struct ChunkHeader {
@@ -119,6 +120,7 @@ impl MessageHeader {
         reader: &mut BufReader<&mut TcpStream>,
         chunk_type: &u8,
     ) -> Result<Self, ParseChunkHeaderError> {
+        trace!("parsing chunk message header");
         match *chunk_type {
             0 => Self::parse_type0(reader).await,
             1 => Self::parse_type1(reader).await,
@@ -150,6 +152,7 @@ impl BasicHeader {
     }
 
     async fn parse(reader: &mut BufReader<&mut TcpStream>) -> Result<Self, ParseChunkHeaderError> {
+        trace!("parsing chunk basic header");
         let byte1 = reader.read_u8().await?;
 
         // bottom 6 bits is header type if 0 or 1 else it's the actual cs_id
@@ -180,13 +183,16 @@ impl ChunkHeader {
     pub async fn read_header(
         reader: &mut BufReader<&mut TcpStream>,
     ) -> Result<Self, ParseChunkHeaderError> {
+        trace!("reading chunk header");
         let basic_header = BasicHeader::parse(reader).await?;
         let message_header = MessageHeader::parse(reader, &basic_header.chunk_type()).await?;
         let extended_timestamp = if message_header.has_extended_timestamp() {
+            trace!("reading chunk extended timestamp");
             Some(reader.read_u32().await?)
         } else {
             None
         };
+        trace!("chunk header has been parsed");
 
         Ok(Self {
             basic_header,
