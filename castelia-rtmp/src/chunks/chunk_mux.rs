@@ -8,6 +8,7 @@ use crate::chunks::{CSId, Chunk};
 #[derive(Debug)]
 struct PartialMessage {
     length: u32,
+    message_type: u8,
     bytes: BytesMut,
 }
 
@@ -18,20 +19,23 @@ pub struct ChunkMultiplexer {
 }
 
 impl ChunkMultiplexer {
-    pub fn receive_chunk(&mut self, chunk: Chunk) -> Option<Bytes> {
+    pub fn receive_chunk(&mut self, chunk: Chunk) -> Option<(Bytes, u8)> {
         let cs_id = chunk.header.chunk_stream_id();
         if let Some(partial) = self.chunk_streams.get_mut(&cs_id) {
             partial.bytes.extend(chunk.payload);
-        } else if let Some(length) = chunk.header.get_message_length() {
+        } else if let Some(length) = chunk.header.get_message_length()
+            && let Some(message_type) = chunk.header.get_message_type()
+        {
             self.chunk_streams.insert(
                 cs_id,
                 PartialMessage {
                     length,
+                    message_type,
                     bytes: chunk.payload.into(),
                 },
             );
         } else {
-            error!("Missing message length, dropping chunk");
+            error!("Incomplete message header, dropping chunk");
             return None;
         }
 
@@ -39,7 +43,7 @@ impl ChunkMultiplexer {
             && partial.length as usize == partial.bytes.len()
             && let Some(partial) = self.chunk_streams.remove(&cs_id)
         {
-            Some(partial.bytes.into())
+            Some((partial.bytes.into(), partial.message_type))
         } else {
             None
         }

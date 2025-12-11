@@ -74,8 +74,8 @@ impl RTMPConnection {
             let chunk = Chunk::read_chunk(&mut reader, &self.max_chunk_size).await?;
             trace!("finished reading chunk");
 
-            if let Some(message_bytes) = self.chunk_mux.receive_chunk(chunk) {
-                let message = Message::parse_message(&message_bytes);
+            if let Some((message_bytes, message_type_id)) = self.chunk_mux.receive_chunk(chunk) {
+                let message = Message::parse_message(&message_bytes, message_type_id);
                 trace!("message received:\n{:#?}", message);
             }
         }

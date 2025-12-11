@@ -72,6 +72,17 @@ struct BasicHeader {
 }
 
 impl MessageHeader {
+    pub fn get_message_type(&self) -> Option<u8> {
+        match *self {
+            MessageHeader::Type0 {
+                message_type_id, ..
+            } => Some(message_type_id),
+            MessageHeader::Type1 {
+                message_type_id, ..
+            } => Some(message_type_id),
+            _ => None,
+        }
+    }
     pub fn len(&self) -> usize {
         match self {
             MessageHeader::Type0 { .. } => 11,
@@ -215,6 +226,10 @@ impl ChunkHeader {
             } else {
                 0
             }
+    }
+
+    pub fn get_message_type(&self) -> Option<u8> {
+        self.message_header.get_message_type()
     }
 
     pub fn chunk_stream_id(&self) -> CSId {
