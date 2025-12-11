@@ -192,13 +192,15 @@ impl ChunkHeader {
         } else {
             None
         };
-        trace!("chunk header has been parsed");
-
-        Ok(Self {
+        let chunk_header = Self {
             basic_header,
             message_header,
             extended_timestamp,
-        })
+        };
+
+        trace!("chunk header has been parsed:\n{:#?}", chunk_header);
+
+        Ok(chunk_header)
     }
 }
 
