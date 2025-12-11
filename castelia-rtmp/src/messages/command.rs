@@ -7,3 +7,9 @@ pub enum CommandMessage {
     Video,
     Aggregate,
 }
+
+impl CommandMessage {
+    pub fn parse_message(buf: &[u8]) -> Self {
+        todo!()
+    }
+}
