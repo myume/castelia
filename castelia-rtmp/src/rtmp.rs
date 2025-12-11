@@ -6,7 +6,11 @@ use tokio::{
 };
 use tracing::{debug, error, instrument, trace};
 
-use crate::{chunks::Chunk, handshake::handshake};
+use crate::{
+    chunks::{Chunk, chunk_mux::ChunkMultiplexer},
+    handshake::handshake,
+    messages::Message,
+};
 
 pub struct RTMPSever {
     listener: TcpListener,
@@ -50,6 +54,7 @@ async fn handle_rtmp_connection(mut connection: RTMPConnection) {
 struct RTMPConnection {
     socket: TcpStream,
     max_chunk_size: usize,
+    chunk_mux: ChunkMultiplexer,
 }
 
 impl RTMPConnection {
@@ -57,6 +62,7 @@ impl RTMPConnection {
         Self {
             socket,
             max_chunk_size: 4096,
+            chunk_mux: ChunkMultiplexer::new(),
         }
     }
 
@@ -67,6 +73,11 @@ impl RTMPConnection {
         loop {
             let chunk = Chunk::read_chunk(&mut reader, &self.max_chunk_size).await?;
             trace!("finished reading chunk");
+
+            if let Some(message_bytes) = self.chunk_mux.receive_chunk(chunk) {
+                let message = Message::parse_message(&message_bytes);
+                trace!("message received:\n{:#?}", message);
+            }
         }
     }
 }

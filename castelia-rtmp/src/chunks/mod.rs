@@ -11,7 +11,10 @@ use tracing::trace;
 
 use crate::chunks::header::{ChunkHeader, ParseChunkHeaderError};
 
+pub mod chunk_mux;
 mod header;
+
+type CSId = u32;
 
 pub struct Chunk {
     pub header: ChunkHeader,

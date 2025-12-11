@@ -7,6 +7,8 @@ use tokio::{
 };
 use tracing::trace;
 
+use crate::chunks::CSId;
+
 #[derive(Debug, PartialEq)]
 pub struct ChunkHeader {
     basic_header: BasicHeader,
@@ -65,7 +67,7 @@ enum MessageHeader {
 #[derive(Debug, PartialEq)]
 struct BasicHeader {
     chunk_type: u8,
-    chunk_stream_id: u32,
+    chunk_stream_id: CSId,
     header_type: u8,
 }
 
@@ -213,6 +215,10 @@ impl ChunkHeader {
             } else {
                 0
             }
+    }
+
+    pub fn chunk_stream_id(&self) -> CSId {
+        self.basic_header.chunk_stream_id()
     }
 
     pub async fn read_header(

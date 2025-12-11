@@ -1,7 +1,12 @@
-pub enum Message {}
+#[derive(Debug)]
+pub enum Message {
+    Protocol,
+    UserControl,
+    Command,
+}
 
 impl Message {
-    pub async fn parse_message(buf: &[u8]) -> Self {
-        todo!()
+    pub fn parse_message(_buf: &[u8]) -> Self {
+        Self::Protocol
     }
 }
