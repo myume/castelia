@@ -83,7 +83,7 @@ impl MessageHeader {
         let timestamp = read_3_be_bytes_to_u32(reader).await?;
         let message_length = read_3_be_bytes_to_u32(reader).await?;
         let message_type_id = reader.read_u8().await?;
-        let message_stream_id = reader.read_u32().await?;
+        let message_stream_id = reader.read_u32_le().await?;
 
         Ok(Self::Type0 {
             timestamp,
@@ -356,7 +356,7 @@ mod tests {
                 timestamp: 0x123456,
                 message_length: 0x112233,
                 message_type_id: 0xcd,
-                message_stream_id: 0x10abcdef
+                message_stream_id: 0xefcdab10 // message stream id is in little endian
             }
         );
         assert!(!header.has_extended_timestamp());
