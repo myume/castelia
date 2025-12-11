@@ -66,22 +66,25 @@ enum MessageHeader {
 struct BasicHeader {
     chunk_type: u8,
     chunk_stream_id: u32,
+    header_type: u8,
 }
 
 impl MessageHeader {
+    pub fn len(&self) -> usize {
+        match self {
+            MessageHeader::Type0 { .. } => 11,
+            MessageHeader::Type1 { .. } => 7,
+            MessageHeader::Type2 { .. } => 3,
+            MessageHeader::Type3 => 0,
+        }
+    }
+
     pub fn has_extended_timestamp(&self) -> bool {
         0xFFFFFF
             == match *self {
-                MessageHeader::Type0 {
-                    timestamp,
-                    message_length: _,
-                    message_type_id: _,
-                    message_stream_id: _,
-                } => timestamp,
+                MessageHeader::Type0 { timestamp, .. } => timestamp,
                 MessageHeader::Type1 {
-                    timestamp_delta,
-                    message_length: _,
-                    message_type_id: _,
+                    timestamp_delta, ..
                 } => timestamp_delta,
                 MessageHeader::Type2 { timestamp_delta } => timestamp_delta,
                 MessageHeader::Type3 => return false,
@@ -154,6 +157,13 @@ pub async fn read_3_be_bytes_to_u32(
 }
 
 impl BasicHeader {
+    pub fn len(&self) -> usize {
+        match self.header_type {
+            0 => 2,
+            1 => 3,
+            _ => 1,
+        }
+    }
     pub fn chunk_type(&self) -> u8 {
         self.chunk_type
     }
@@ -186,11 +196,25 @@ impl BasicHeader {
         Ok(Self {
             chunk_type: byte1 >> 6,
             chunk_stream_id,
+            header_type,
         })
     }
 }
 
 impl ChunkHeader {
+    /// Return the number of bytes read in the header.
+    ///
+    /// This is the size of the *actual* header, not the internal representation
+    pub fn len(&self) -> usize {
+        self.basic_header.len()
+            + self.message_header.len()
+            + if self.extended_timestamp.is_some() {
+                4
+            } else {
+                0
+            }
+    }
+
     pub async fn read_header(
         reader: &mut BufReader<&mut TcpStream>,
     ) -> Result<Self, ParseChunkHeaderError> {
@@ -213,18 +237,9 @@ impl ChunkHeader {
 
     pub fn get_message_length(&self) -> Option<u32> {
         match self.message_header {
-            MessageHeader::Type0 {
-                timestamp: _,
-                message_length,
-                message_type_id: _,
-                message_stream_id: _,
-            } => Some(message_length),
-            MessageHeader::Type1 {
-                timestamp_delta: _,
-                message_length,
-                message_type_id: _,
-            } => Some(message_length),
-            MessageHeader::Type2 { timestamp_delta: _ } => None,
+            MessageHeader::Type0 { message_length, .. } => Some(message_length),
+            MessageHeader::Type1 { message_length, .. } => Some(message_length),
+            MessageHeader::Type2 { .. } => None,
             MessageHeader::Type3 => None,
         }
     }

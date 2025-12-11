@@ -105,6 +105,7 @@ dependencies = [
 name = "castelia-rtmp"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "rand",
  "thiserror",
  "tokio",

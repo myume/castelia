@@ -1,9 +1,7 @@
-use tokio::{io::BufReader, net::TcpStream};
+pub enum Message {}
 
-pub enum RTMPMessage {}
-
-impl RTMPMessage {
-    pub async fn read_message(reader: &mut BufReader<&mut TcpStream>) -> Self {
+impl Message {
+    pub async fn parse_message(buf: &[u8]) -> Self {
         todo!()
     }
 }

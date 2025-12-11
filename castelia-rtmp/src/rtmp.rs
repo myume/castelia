@@ -1,13 +1,12 @@
-use std::{io, time::Duration};
+use std::io;
 
 use tokio::{
-    io::{AsyncReadExt, BufReader},
+    io::BufReader,
     net::{TcpListener, TcpStream},
-    time::timeout,
 };
 use tracing::{debug, error, instrument, trace};
 
-use crate::{chunks::header::ChunkHeader, handshake::handshake};
+use crate::{chunks::Chunk, handshake::handshake};
 
 pub struct RTMPSever {
     listener: TcpListener,
@@ -50,11 +49,15 @@ async fn handle_rtmp_connection(mut connection: RTMPConnection) {
 #[derive(Debug)]
 struct RTMPConnection {
     socket: TcpStream,
+    max_chunk_size: usize,
 }
 
 impl RTMPConnection {
     pub fn new(socket: TcpStream) -> Self {
-        Self { socket }
+        Self {
+            socket,
+            max_chunk_size: 4096,
+        }
     }
 
     async fn process(&mut self) -> io::Result<()> {
@@ -62,17 +65,8 @@ impl RTMPConnection {
 
         let mut reader = BufReader::new(&mut self.socket);
         loop {
-            let chunk_header = timeout(
-                Duration::from_secs(30),
-                ChunkHeader::read_header(&mut reader),
-            )
-            .await??; // the forbidden double question mark
-            trace!("chunk header has been parsed:\n{:#?}", chunk_header);
-            let message_length = chunk_header.get_message_length().unwrap_or(128);
-            let mut buf = Vec::with_capacity(message_length as usize);
-            let bytes_read = reader.read_buf(&mut buf).await?;
-
-            dbg!(bytes_read, String::from_utf8_lossy(&buf[..bytes_read]));
+            let chunk = Chunk::read_chunk(&mut reader, &self.max_chunk_size).await?;
+            trace!("finished reading chunk");
         }
     }
 }
