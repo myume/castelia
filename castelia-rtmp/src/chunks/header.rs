@@ -26,6 +26,17 @@ pub enum ParseChunkHeaderError {
     InvalidChunkType(u8),
 }
 
+impl From<ParseChunkHeaderError> for io::Error {
+    fn from(value: ParseChunkHeaderError) -> Self {
+        match value {
+            ParseChunkHeaderError::ReadError(ref error) => io::Error::new(error.kind(), value),
+            ParseChunkHeaderError::InvalidChunkType(_) => {
+                io::Error::new(io::ErrorKind::InvalidData, value)
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 enum MessageHeader {
     Type0 {
@@ -192,15 +203,12 @@ impl ChunkHeader {
         } else {
             None
         };
-        let chunk_header = Self {
+
+        Ok(Self {
             basic_header,
             message_header,
             extended_timestamp,
-        };
-
-        trace!("chunk header has been parsed:\n{:#?}", chunk_header);
-
-        Ok(chunk_header)
+        })
     }
 
     pub fn get_message_length(&self) -> Option<u32> {
