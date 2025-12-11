@@ -202,6 +202,24 @@ impl ChunkHeader {
 
         Ok(chunk_header)
     }
+
+    pub fn get_message_length(&self) -> Option<u32> {
+        match self.message_header {
+            MessageHeader::Type0 {
+                timestamp: _,
+                message_length,
+                message_type_id: _,
+                message_stream_id: _,
+            } => Some(message_length),
+            MessageHeader::Type1 {
+                timestamp_delta: _,
+                message_length,
+                message_type_id: _,
+            } => Some(message_length),
+            MessageHeader::Type2 { timestamp_delta: _ } => None,
+            MessageHeader::Type3 => None,
+        }
+    }
 }
 
 #[cfg(test)]
