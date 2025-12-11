@@ -4,7 +4,7 @@ use tokio::{
     io::BufReader,
     net::{TcpListener, TcpStream},
 };
-use tracing::{error, trace};
+use tracing::{debug, error, instrument, trace};
 
 use crate::{chunks::Chunk, handshake::handshake};
 
@@ -20,7 +20,7 @@ impl RTMPSever {
     pub async fn run(&self) -> io::Result<()> {
         loop {
             let (socket, addr) = self.listener.accept().await?;
-            trace!("Accepted connection from {addr}");
+            debug!("Accepted connection from {addr}");
 
             let mut connection = RTMPConnection::new(socket);
             tokio::spawn(async move {
@@ -32,6 +32,7 @@ impl RTMPSever {
     }
 }
 
+#[derive(Debug)]
 struct RTMPConnection {
     socket: TcpStream,
 }
@@ -41,6 +42,17 @@ impl RTMPConnection {
         Self { socket }
     }
 
+    #[instrument(
+        name = "RTMP connection",
+        skip_all,
+        fields(
+            address = %self
+                        .socket
+                        .peer_addr()
+                        .map(|addr| addr.to_string())
+                        .unwrap_or("unknown address".to_owned())
+        )
+    )]
     async fn process(&mut self) -> io::Result<()> {
         handshake(&mut self.socket).await?;
 
