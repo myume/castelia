@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use crate::{
     amf::{self},
-    netconnection::NetConnectionCommand,
+    netconnection::NetConnectionCommandType,
 };
 
 pub mod command_message_type {
@@ -36,13 +36,13 @@ pub enum ParseError {
 }
 
 #[derive(Debug)]
-pub enum Command<'a> {
-    NetConnectionCommand(NetConnectionCommand<'a>),
-}
-
-#[derive(Debug)]
 pub enum CommandMessage<'a> {
-    Command(Command<'a>),
+    NetConnectionCommand {
+        command_type: NetConnectionCommandType<'a>,
+        transaction_id: f64,
+        command_object: amf::AMF0Value<'a>,
+    },
+    NetStreamCommand {},
     Data,
     SharedObject,
     Audio,
@@ -55,7 +55,7 @@ impl<'a> CommandMessage<'a> {
         buf: &'a [u8],
         message_type_id: &u8,
     ) -> Result<CommandMessage<'a>, ParseError> {
-        Ok(match *message_type_id {
+        match *message_type_id {
             command_message_type::COMMAND_AMF0 => CommandMessage::parse_command(buf),
             // command_message_type::DATA_AMF0 => CommandMessage::Data,
             // command_message_type::SHARED_OBJECT_AMF0 => CommandMessage::SharedObject,
@@ -66,7 +66,7 @@ impl<'a> CommandMessage<'a> {
             | command_message_type::DATA_AMF3
             | command_message_type::SHARED_OBJECT_AMF3 => Err(ParseError::UnsupportedEncoding),
             e => Err(ParseError::InvalidMessageType(e)),
-        }?)
+        }
     }
 
     fn parse_command(buf: &'a [u8]) -> Result<CommandMessage<'a>, ParseError> {
@@ -91,12 +91,10 @@ impl<'a> CommandMessage<'a> {
         };
         let command_object = decoder.decode()?;
 
-        Ok(CommandMessage::Command(Command::NetConnectionCommand(
-            NetConnectionCommand {
-                command_type: command.into(),
-                transaction_id,
-                command_object,
-            },
-        )))
+        Ok(CommandMessage::NetConnectionCommand {
+            command_type: command.into(),
+            transaction_id,
+            command_object,
+        })
     }
 }
