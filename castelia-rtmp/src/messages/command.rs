@@ -45,8 +45,8 @@ pub enum CommandMessage<'a> {
     NetStreamCommand {},
     Data,
     SharedObject,
-    Audio,
-    Video,
+    Audio(&'a [u8]),
+    Video(&'a [u8]),
     Aggregate,
 }
 
@@ -59,8 +59,8 @@ impl<'a> CommandMessage<'a> {
             command_message_type::COMMAND_AMF0 => CommandMessage::parse_command(buf),
             // command_message_type::DATA_AMF0 => CommandMessage::Data,
             // command_message_type::SHARED_OBJECT_AMF0 => CommandMessage::SharedObject,
-            // command_message_type::AUDIO => {}
-            // command_message_type::VIDEO => {}
+            command_message_type::AUDIO => Ok(CommandMessage::Audio(buf)),
+            command_message_type::VIDEO => Ok(CommandMessage::Video(buf)),
             // command_message_type::AGGREGATE => {}
             command_message_type::COMMAND_AMF3
             | command_message_type::DATA_AMF3
