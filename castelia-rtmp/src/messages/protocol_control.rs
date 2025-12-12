@@ -20,12 +20,15 @@ pub enum ParseError {
         #[from]
         TryFromSliceError,
     ),
+    #[error("Invalid message type id: {0}")]
+    InvalidMessageTypeId(u8),
 }
 
 impl From<ParseError> for ParseMessageError {
     fn from(value: ParseError) -> Self {
         match value {
             ParseError::InvalidMessageSize(_) => Self::InvalidMessageSize,
+            ParseError::InvalidMessageTypeId(id) => Self::InvalidMessageTypeId(id),
         }
     }
 }
@@ -54,7 +57,7 @@ impl ProtolControlMessage {
                 window_size: u32::from_be_bytes(buf[..4].try_into()?),
                 limit_type: buf[5],
             },
-            _ => panic!(),
+            _ => return Err(ParseError::InvalidMessageTypeId(*message_type_id)),
         })
     }
 }

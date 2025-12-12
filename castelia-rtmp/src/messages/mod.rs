@@ -1,5 +1,3 @@
-use std::array::TryFromSliceError;
-
 use thiserror::Error;
 
 use crate::messages::{
@@ -39,7 +37,9 @@ impl Message {
                 Self::Protocol(ProtolControlMessage::parse_message(buf, &message_type_id)?)
             }
 
-            USER_CONTROL_TYPE => Self::UserControl(UserControlMessage::parse_message(buf))?,
+            USER_CONTROL_TYPE => {
+                Self::UserControl(UserControlMessage::parse_message(buf, &message_type_id)?)
+            }
 
             command_message_type::COMMAND_AMF0
             | command_message_type::COMMAND_AMF3
@@ -49,7 +49,9 @@ impl Message {
             | command_message_type::SHARED_OBJECT_AMF3
             | command_message_type::AUDIO
             | command_message_type::VIDEO
-            | command_message_type::AGGREGATE => Self::Command(CommandMessage::parse_message(buf))?,
+            | command_message_type::AGGREGATE => {
+                Self::Command(CommandMessage::parse_message(buf, &message_type_id)?)
+            }
             id => return Err(ParseMessageError::InvalidMessageTypeId(id)),
         })
     }

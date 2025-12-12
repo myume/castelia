@@ -1,3 +1,5 @@
+use crate::messages::ParseMessageError;
+
 pub mod command_message_type {
     pub const COMMAND_AMF0: u8 = 20;
     pub const COMMAND_AMF3: u8 = 17;
@@ -8,6 +10,14 @@ pub mod command_message_type {
     pub const AUDIO: u8 = 8;
     pub const VIDEO: u8 = 9;
     pub const AGGREGATE: u8 = 22;
+}
+
+pub enum ParseError {}
+
+impl From<ParseError> for ParseMessageError {
+    fn from(value: ParseError) -> Self {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
@@ -21,7 +31,7 @@ pub enum CommandMessage {
 }
 
 impl CommandMessage {
-    pub fn parse_message(buf: &[u8]) -> Self {
+    pub fn parse_message(buf: &[u8], message_type_id: &u8) -> Result<Self, ParseError> {
         todo!()
     }
 }
