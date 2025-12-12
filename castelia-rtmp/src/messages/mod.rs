@@ -19,10 +19,18 @@ pub enum ParseMessageError {
     InvalidMessageTypeId(u8),
     #[error("Invalid message size")]
     InvalidMessageSize,
-    #[error("Failed to decode message: {0}")]
-    DecodeError(#[source] amf::DecodeError),
-    #[error("Unsupported encoding")]
-    UnsupportedEncoding,
+    #[error("Invalid command")]
+    BadCommandMessage(
+        #[source]
+        #[from]
+        command::ParseError,
+    ),
+    #[error("Invalid user control message")]
+    BadUserControl(
+        #[source]
+        #[from]
+        user_control::ParseError,
+    ),
 }
 
 #[derive(Debug)]

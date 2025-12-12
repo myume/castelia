@@ -1,16 +1,13 @@
-use crate::messages::ParseMessageError;
+use thiserror::Error;
 
 pub const USER_CONTROL_TYPE: u8 = 4;
 
+#[derive(Error, Debug)]
 pub enum ParseError {
+    #[error("Invalid event type {0}")]
     InvalidEventType(u16),
+    #[error("Invalid message size")]
     InvalidMessageSize,
-}
-
-impl From<ParseError> for ParseMessageError {
-    fn from(value: ParseError) -> Self {
-        todo!()
-    }
 }
 
 #[derive(Debug)]

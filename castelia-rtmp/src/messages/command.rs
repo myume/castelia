@@ -32,17 +32,8 @@ pub enum ParseError {
     ),
     #[error("Invalid command: {0}")]
     InvalidCommand(String),
-}
-
-impl From<ParseError> for ParseMessageError {
-    fn from(value: ParseError) -> Self {
-        match value {
-            ParseError::InvalidMessageType(id) => ParseMessageError::InvalidMessageTypeId(id),
-            ParseError::DecodeError(decode_error) => ParseMessageError::DecodeError(decode_error),
-            ParseError::UnsupportedEncoding => ParseMessageError::UnsupportedEncoding,
-            ParseError::InvalidCommand(_) => todo!(),
-        }
-    }
+    #[error("Invalid transaction id: {0}")]
+    InvalidTransationId(String),
 }
 
 #[derive(Debug)]
