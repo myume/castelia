@@ -1,9 +1,12 @@
 use thiserror::Error;
 
-use crate::messages::{
-    command::{CommandMessage, command_message_type},
-    protocol_control::{ProtolControlMessage, protocol_control_type},
-    user_control::{USER_CONTROL_TYPE, UserControlMessage},
+use crate::{
+    amf,
+    messages::{
+        command::{CommandMessage, command_message_type},
+        protocol_control::{ProtolControlMessage, protocol_control_type},
+        user_control::{USER_CONTROL_TYPE, UserControlMessage},
+    },
 };
 
 pub mod command;
@@ -14,20 +17,23 @@ pub mod user_control;
 pub enum ParseMessageError {
     #[error("Invalid message type id: {0}")]
     InvalidMessageTypeId(u8),
-
     #[error("Invalid message size")]
     InvalidMessageSize,
+    #[error("Failed to decode message: {0}")]
+    DecodeError(#[source] amf::DecodeError),
+    #[error("Unsupported encoding")]
+    UnsupportedEncoding,
 }
 
 #[derive(Debug)]
-pub enum Message {
+pub enum Message<'a> {
     Protocol(ProtolControlMessage),
     UserControl(UserControlMessage),
-    Command(CommandMessage),
+    Command(CommandMessage<'a>),
 }
 
-impl Message {
-    pub fn parse_message(buf: &[u8], message_type_id: u8) -> Result<Self, ParseMessageError> {
+impl<'a> Message<'a> {
+    pub fn parse_message(buf: &'a [u8], message_type_id: u8) -> Result<Self, ParseMessageError> {
         Ok(match message_type_id {
             protocol_control_type::SET_CHUNK_SIZE
             | protocol_control_type::ABORT
