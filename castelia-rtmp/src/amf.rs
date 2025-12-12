@@ -129,6 +129,10 @@ impl<'a> Decoder<'a> {
             .get(..length as usize)
             .ok_or(DecodeError::UnexpectedEOF)?;
 
+        self.cursor
+            .seek_relative(length as i64)
+            .map_err(|_| DecodeError::UnexpectedEOF)?;
+
         Ok(AMF0Value::String(str::from_utf8(value)?))
     }
 
@@ -196,8 +200,18 @@ mod tests {
         ]
         .concat();
         assert_eq!(
-            Decoder::new(&bytes.as_slice()).decode(),
+            Decoder::new(bytes.as_slice()).decode(),
             Ok(AMF0Value::String(actual))
+        );
+    }
+
+    #[test]
+    fn test_decode_number_with_marker() {
+        let actual: f64 = rand::random();
+        let bytes = [&[amf0_type_marker::NUMBER], actual.to_be_bytes().as_slice()].concat();
+        assert_eq!(
+            Decoder::new(bytes.as_slice()).decode(),
+            Ok(AMF0Value::Number(actual))
         );
     }
 }
