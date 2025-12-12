@@ -30,13 +30,15 @@ pub enum UserControlMessage {
 impl UserControlMessage {
     pub fn parse_message(buf: &[u8]) -> Result<Self, ParseError> {
         let event_type = u16::from_be_bytes(
-            buf[..2]
+            buf.get(..2)
+                .ok_or(ParseError::InvalidMessageSize)?
                 .try_into()
                 .map_err(|_| ParseError::InvalidMessageSize)?,
         );
 
         let data = u32::from_be_bytes(
-            buf[2..6]
+            buf.get(2..6)
+                .ok_or(ParseError::InvalidMessageSize)?
                 .try_into()
                 .map_err(|_| ParseError::InvalidMessageSize)?,
         );
@@ -48,7 +50,8 @@ impl UserControlMessage {
             3 => Self::SetBufferLength {
                 message_stream_id: data,
                 buffer_size_in_millis: u32::from_be_bytes(
-                    buf[2..6]
+                    buf.get(2..6)
+                        .ok_or(ParseError::InvalidMessageSize)?
                         .try_into()
                         .map_err(|_| ParseError::InvalidMessageSize)?,
                 ),

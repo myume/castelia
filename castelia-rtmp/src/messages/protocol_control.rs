@@ -39,7 +39,8 @@ pub enum ProtolControlMessage {
 impl ProtolControlMessage {
     pub fn parse_message(buf: &[u8], message_type_id: &u8) -> Result<Self, ParseError> {
         let data = u32::from_be_bytes(
-            buf[..4]
+            buf.get(..4)
+                .ok_or(ParseError::InvalidMessageSize)?
                 .try_into()
                 .map_err(|_| ParseError::InvalidMessageSize)?,
         );
