@@ -1,3 +1,5 @@
+pub const USER_CONTROL_TYPE: u8 = 4;
+
 #[derive(Debug)]
 pub enum UserControlMessage {}
 
