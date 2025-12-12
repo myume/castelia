@@ -149,6 +149,11 @@ impl<'a> Decoder<'a> {
 
         Ok(AMF0Value::Object(obj))
     }
+
+    #[cfg(test)]
+    fn position(&self) -> u64 {
+        self.cursor.position()
+    }
 }
 
 #[cfg(test)]
@@ -163,31 +168,28 @@ mod tests {
             actual.as_bytes(),
         ]
         .concat();
-        assert_eq!(
-            Decoder::new(&bytes).decode_string(),
-            Ok(AMF0Value::String(actual))
-        );
+        let mut decoder = Decoder::new(&bytes);
+        assert_eq!(decoder.decode_string(), Ok(AMF0Value::String(actual)));
+        assert_eq!(decoder.position(), bytes.len() as u64);
     }
 
     #[test]
     fn test_decode_number() {
         let actual: f64 = rand::random();
-        assert_eq!(
-            Decoder::new(&actual.to_be_bytes()).decode_number(),
-            Ok(AMF0Value::Number(actual))
-        );
+        let bytes = actual.to_be_bytes();
+        let mut decoder = Decoder::new(&bytes);
+        assert_eq!(decoder.decode_number(), Ok(AMF0Value::Number(actual)));
+        assert_eq!(decoder.position(), 8);
     }
 
     #[test]
     fn test_decode_bool() {
-        assert_eq!(
-            Decoder::new(&[1]).decode_bool(),
-            Ok(AMF0Value::Boolean(true))
-        );
-        assert_eq!(
-            Decoder::new(&[0]).decode_bool(),
-            Ok(AMF0Value::Boolean(false))
-        );
+        let mut decoder = Decoder::new(&[1]);
+        assert_eq!(decoder.decode_bool(), Ok(AMF0Value::Boolean(true)));
+        assert_eq!(decoder.position(), 1);
+        let mut decoder = Decoder::new(&[0]);
+        assert_eq!(decoder.decode_bool(), Ok(AMF0Value::Boolean(false)));
+        assert_eq!(decoder.position(), 1);
     }
 
     #[test]
@@ -199,19 +201,28 @@ mod tests {
             actual.as_bytes(),
         ]
         .concat();
-        assert_eq!(
-            Decoder::new(bytes.as_slice()).decode(),
-            Ok(AMF0Value::String(actual))
-        );
+
+        let mut decoder = Decoder::new(bytes.as_slice());
+        assert_eq!(decoder.decode(), Ok(AMF0Value::String(actual)));
+        assert_eq!(decoder.position(), bytes.len() as u64);
     }
 
     #[test]
     fn test_decode_number_with_marker() {
         let actual: f64 = rand::random();
         let bytes = [&[amf0_type_marker::NUMBER], actual.to_be_bytes().as_slice()].concat();
-        assert_eq!(
-            Decoder::new(bytes.as_slice()).decode(),
-            Ok(AMF0Value::Number(actual))
-        );
+        let mut decoder = Decoder::new(bytes.as_slice());
+        assert_eq!(decoder.decode(), Ok(AMF0Value::Number(actual)));
+        assert_eq!(decoder.position(), bytes.len() as u64);
+    }
+
+    #[test]
+    fn test_decode_bool_with_marker() {
+        let mut decoder = Decoder::new(&[amf0_type_marker::BOOL, 0x01]);
+        assert_eq!(decoder.decode(), Ok(AMF0Value::Boolean(true)));
+        assert_eq!(decoder.position(), 2);
+        let mut decoder = Decoder::new(&[amf0_type_marker::BOOL, 0x00]);
+        assert_eq!(decoder.decode(), Ok(AMF0Value::Boolean(false)));
+        assert_eq!(decoder.position(), 2);
     }
 }
