@@ -2,7 +2,6 @@ use thiserror::Error;
 
 use crate::{
     amf::{self},
-    messages::ParseMessageError,
     netconnection::NetConnectionCommand,
 };
 
@@ -74,20 +73,28 @@ impl<'a> CommandMessage<'a> {
         let mut decoder = amf::Decoder::new(buf);
         let command = match decoder.decode()? {
             amf::AMF0Value::String(command) => command,
-            e => {
+            val => {
                 return Err(ParseError::InvalidCommand(format!(
                     "Expected string for command, found: {:?}",
-                    e
+                    val
                 )));
             }
         };
-        let transaction_id = decoder.decode()?;
+        let transaction_id = match decoder.decode()? {
+            amf::AMF0Value::Number(num) => num,
+            val => {
+                return Err(ParseError::InvalidTransationId(format!(
+                    "Expected number for transaction id, found: {:?}",
+                    val
+                )));
+            }
+        };
         let command_object = decoder.decode()?;
 
         Ok(CommandMessage::Command(Command::NetConnectionCommand(
             NetConnectionCommand {
-                command_type: command.try_into().map_err(ParseError::InvalidCommand)?,
-                transaction_id: 1.0,
+                command_type: command.into(),
+                transaction_id,
                 command_object,
             },
         )))

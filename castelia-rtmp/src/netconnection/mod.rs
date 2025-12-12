@@ -1,30 +1,27 @@
 use crate::amf::AMF0Value;
 
 #[derive(Debug)]
-pub enum NetConnectionCommandType {
+pub enum NetConnectionCommandType<'a> {
     Connect,
-    Call,
+    Call(&'a str),
     Close,
     CreateStream,
 }
 
-impl TryFrom<&str> for NetConnectionCommandType {
-    type Error = String;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Ok(match value {
+impl<'a> From<&'a str> for NetConnectionCommandType<'a> {
+    fn from(value: &'a str) -> Self {
+        match value {
             "connect" => Self::Connect,
-            "call" => Self::Call,
             "close" => Self::Close,
             "createStream" => Self::CreateStream,
-            e => return Err(format!("Invalid command type: {e}")),
-        })
+            procedure_name => Self::Call(procedure_name),
+        }
     }
 }
 
 #[derive(Debug)]
 pub struct NetConnectionCommand<'a> {
-    pub command_type: NetConnectionCommandType,
+    pub command_type: NetConnectionCommandType<'a>,
     pub transaction_id: f64,
     pub command_object: AMF0Value<'a>,
 }
