@@ -1,5 +1,3 @@
-use std::array::TryFromSliceError;
-
 use thiserror::Error;
 
 use crate::messages::ParseMessageError;
@@ -15,11 +13,7 @@ pub mod protocol_control_type {
 #[derive(Error, Debug)]
 pub enum ParseError {
     #[error("Invalid message size")]
-    InvalidMessageSize(
-        #[source]
-        #[from]
-        TryFromSliceError,
-    ),
+    InvalidMessageSize,
     #[error("Invalid message type id: {0}")]
     InvalidMessageTypeId(u8),
 }
@@ -27,7 +21,7 @@ pub enum ParseError {
 impl From<ParseError> for ParseMessageError {
     fn from(value: ParseError) -> Self {
         match value {
-            ParseError::InvalidMessageSize(_) => Self::InvalidMessageSize,
+            ParseError::InvalidMessageSize => Self::InvalidMessageSize,
             ParseError::InvalidMessageTypeId(id) => Self::InvalidMessageTypeId(id),
         }
     }
@@ -44,18 +38,19 @@ pub enum ProtolControlMessage {
 
 impl ProtolControlMessage {
     pub fn parse_message(buf: &[u8], message_type_id: &u8) -> Result<Self, ParseError> {
+        let data = u32::from_be_bytes(
+            buf[..4]
+                .try_into()
+                .map_err(|_| ParseError::InvalidMessageSize)?,
+        );
         Ok(match *message_type_id {
-            protocol_control_type::SET_CHUNK_SIZE => {
-                Self::SetChunkSize(u32::from_be_bytes(buf[..4].try_into()?))
-            }
-            protocol_control_type::ABORT => Self::Abort(u32::from_be_bytes(buf[..4].try_into()?)),
-            protocol_control_type::ACK => Self::Ack(u32::from_be_bytes(buf[..4].try_into()?)),
-            protocol_control_type::WINDOW_ACK_SIZE => {
-                Self::AckWindowSize(u32::from_be_bytes(buf[..4].try_into()?))
-            }
+            protocol_control_type::SET_CHUNK_SIZE => Self::SetChunkSize(data),
+            protocol_control_type::ABORT => Self::Abort(data),
+            protocol_control_type::ACK => Self::Ack(data),
+            protocol_control_type::WINDOW_ACK_SIZE => Self::AckWindowSize(data),
             protocol_control_type::SET_PEER_BANDWIDTH => Self::SetPeerBandwidth {
-                window_size: u32::from_be_bytes(buf[..4].try_into()?),
-                limit_type: buf[5],
+                window_size: data,
+                limit_type: *buf.get(5).ok_or(ParseError::InvalidMessageSize)?,
             },
             _ => return Err(ParseError::InvalidMessageTypeId(*message_type_id)),
         })

@@ -37,9 +37,7 @@ impl Message {
                 Self::Protocol(ProtolControlMessage::parse_message(buf, &message_type_id)?)
             }
 
-            USER_CONTROL_TYPE => {
-                Self::UserControl(UserControlMessage::parse_message(buf, &message_type_id)?)
-            }
+            USER_CONTROL_TYPE => Self::UserControl(UserControlMessage::parse_message(buf)?),
 
             command_message_type::COMMAND_AMF0
             | command_message_type::COMMAND_AMF3
