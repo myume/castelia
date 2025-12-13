@@ -31,6 +31,51 @@ pub enum AMF0Value<'a> {
     Null,
 }
 
+impl<'a> TryFrom<AMF0Value<'a>> for &'a str {
+    type Error = CastError;
+
+    fn try_from(value: AMF0Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            AMF0Value::String(s) => Ok(s),
+            found => Err(CastError::TypeMismatch(format!(
+                "Expected string, found {found:?}"
+            ))),
+        }
+    }
+}
+
+impl<'a> TryFrom<AMF0Value<'a>> for f64 {
+    type Error = CastError;
+
+    fn try_from(value: AMF0Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            AMF0Value::Number(num) => Ok(num),
+            found => Err(CastError::TypeMismatch(format!(
+                "Expected string, found {found:?}"
+            ))),
+        }
+    }
+}
+
+impl<'a> TryFrom<AMF0Value<'a>> for bool {
+    type Error = CastError;
+
+    fn try_from(value: AMF0Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            AMF0Value::Boolean(b) => Ok(b),
+            found => Err(CastError::TypeMismatch(format!(
+                "Expected string, found {found:?}"
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum CastError {
+    #[error("{0}")]
+    TypeMismatch(String),
+}
+
 #[derive(Debug, Error, PartialEq)]
 pub enum DecodeError {
     #[error("Invalid AMF message size")]
@@ -60,7 +105,7 @@ impl<'a> Decoder<'a> {
         }
     }
 
-    fn get_buf(&self) -> Result<&'a [u8], DecodeError> {
+    pub fn get_buf(&self) -> Result<&'a [u8], DecodeError> {
         self.cursor
             .get_ref()
             .get(self.cursor.position() as usize..)

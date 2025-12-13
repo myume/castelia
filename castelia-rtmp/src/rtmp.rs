@@ -76,7 +76,7 @@ impl RTMPConnection {
 
             if let Some((message_bytes, message_type_id)) = self.chunk_mux.receive_chunk(chunk) {
                 match Message::parse_message(&message_bytes, message_type_id) {
-                    Ok(msg) => trace!("message received:\n{:#?}", msg),
+                    Ok(msg) => debug!("message received:\n{:#?}", msg),
                     Err(e) => error!("unable to parse message: {e}"),
                 };
             }

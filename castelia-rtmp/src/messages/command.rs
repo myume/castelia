@@ -3,6 +3,7 @@ use thiserror::Error;
 use crate::{
     amf::{self},
     netconnection::NetConnectionCommandType,
+    netstream::NetStreamCommand,
 };
 
 pub mod command_message_type {
@@ -33,6 +34,13 @@ pub enum ParseError {
     InvalidCommand(String),
     #[error("Invalid transaction id: {0}")]
     InvalidTransationId(String),
+
+    #[error("Failed to cast AMF encoded value: {0}")]
+    CastError(
+        #[source]
+        #[from]
+        amf::CastError,
+    ),
 }
 
 #[derive(Debug)]
@@ -42,7 +50,11 @@ pub enum CommandMessage<'a> {
         transaction_id: f64,
         command_object: amf::AMF0Value<'a>,
     },
-    NetStreamCommand {},
+    NetStreamCommand {
+        command: NetStreamCommand<'a>,
+        transaction_id: f64,
+        command_object: amf::AMF0Value<'a>,
+    },
     Data,
     SharedObject,
     Audio(&'a [u8]),
@@ -70,29 +82,39 @@ impl<'a> CommandMessage<'a> {
     }
 
     fn parse_command(buf: &'a [u8]) -> Result<CommandMessage<'a>, ParseError> {
-        let mut decoder = amf::Decoder::new(buf);
-        let command = match decoder.decode()? {
-            amf::AMF0Value::String(command) => command,
-            val => {
-                return Err(ParseError::InvalidCommand(format!(
-                    "Expected string for command, found: {:?}",
-                    val
-                )));
-            }
-        };
-        let transaction_id = match decoder.decode()? {
-            amf::AMF0Value::Number(num) => num,
-            val => {
-                return Err(ParseError::InvalidTransationId(format!(
-                    "Expected number for transaction id, found: {:?}",
-                    val
-                )));
-            }
-        };
-        let command_object = decoder.decode()?;
+        CommandMessage::parse_netstream_command(buf)
+            .or(CommandMessage::parse_netconnection_command(buf))
+    }
 
+    fn parse_netstream_command(buf: &'a [u8]) -> Result<CommandMessage<'a>, ParseError> {
+        let mut decoder = amf::Decoder::new(buf);
+        let (command_type, transaction_id, command_object) =
+            CommandMessage::parse_base_command(&mut decoder)?;
+
+        let command = NetStreamCommand::parse(command_type, decoder.get_buf()?)?;
+
+        Ok(CommandMessage::NetStreamCommand {
+            command,
+            transaction_id,
+            command_object,
+        })
+    }
+
+    fn parse_base_command<'d>(
+        decoder: &'d mut amf::Decoder<'a>,
+    ) -> Result<(&'a str, f64, amf::AMF0Value<'a>), ParseError> {
+        let command = decoder.decode()?.try_into()?;
+        let transaction_id = decoder.decode()?.try_into()?;
+        let command_object = decoder.decode()?;
+        Ok((command, transaction_id, command_object))
+    }
+
+    fn parse_netconnection_command(buf: &'a [u8]) -> Result<CommandMessage<'a>, ParseError> {
+        let mut decoder = amf::Decoder::new(buf);
+        let (command_type, transaction_id, command_object) =
+            CommandMessage::parse_base_command(&mut decoder)?;
         Ok(CommandMessage::NetConnectionCommand {
-            command_type: command.into(),
+            command_type: command_type.into(),
             transaction_id,
             command_object,
         })
