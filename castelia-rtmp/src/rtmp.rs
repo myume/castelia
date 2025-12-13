@@ -7,10 +7,9 @@ use tokio::{
 use tracing::{debug, error, instrument, trace};
 
 use crate::{
-    chunks::{Chunk, chunk_mux::ChunkMultiplexer},
+    chunks::{Chunk, chunk_mux::ChunkDemultiplexer},
     handshake::handshake,
-    messages::Message,
-    netconnection::NetConnection,
+    messages::{Message, router::MessageRouter},
 };
 
 pub struct RTMPSever {
@@ -54,16 +53,16 @@ async fn handle_rtmp_connection(mut connection: RTMPConnection) {
 #[derive(Debug)]
 struct RTMPConnection {
     socket: TcpStream,
-    chunk_mux: ChunkMultiplexer,
-    net_connection: NetConnection,
+    chunk_demux: ChunkDemultiplexer,
+    message_router: MessageRouter,
 }
 
 impl RTMPConnection {
     pub fn new(socket: TcpStream) -> Self {
         Self {
             socket,
-            chunk_mux: ChunkMultiplexer::new(),
-            net_connection: NetConnection::new(),
+            chunk_demux: ChunkDemultiplexer::new(),
+            message_router: MessageRouter::new(),
         }
     }
 
@@ -72,19 +71,17 @@ impl RTMPConnection {
 
         let mut reader = BufReader::new(&mut self.socket);
         loop {
-            let chunk = Chunk::read_chunk(
-                &mut reader,
-                &(self.net_connection.max_chunk_size() as usize),
-            )
-            .await?;
+            let max_chunk_size = self.message_router.netconnection().max_chunk_size() as usize;
+            let chunk = Chunk::read_chunk(&mut reader, &max_chunk_size).await?;
             trace!("finished reading chunk");
 
             if let Some((message_bytes, message_type_id, message_stream_id)) =
-                self.chunk_mux.receive_chunk(chunk)
+                self.chunk_demux.receive_chunk(chunk)
             {
                 match Message::parse_message(&message_bytes, message_type_id) {
                     Ok(msg) => {
                         debug!("message received:\n{:#?}", msg);
+                        self.message_router.route_message(msg, message_stream_id);
                     }
                     Err(e) => error!("unable to parse message: {e}"),
                 };

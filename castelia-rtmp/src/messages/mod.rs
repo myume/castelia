@@ -8,6 +8,7 @@ use crate::messages::{
 
 pub mod command;
 pub mod protocol_control;
+pub(crate) mod router;
 pub mod user_control;
 
 #[derive(Error, Debug)]
