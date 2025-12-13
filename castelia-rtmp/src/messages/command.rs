@@ -1,11 +1,7 @@
 use thiserror::Error;
 use tracing::warn;
 
-use crate::{
-    amf::{self},
-    netconnection::NetConnectionCommandType,
-    netstream::NetStreamCommand,
-};
+use crate::{amf, netconnection::NetConnectionCommandType, netstream::NetStreamCommand};
 
 pub mod command_message_type {
     pub const COMMAND_AMF0: u8 = 20;
@@ -53,11 +49,12 @@ pub enum CommandMessage<'a> {
         transaction_id: f64,
         command_object: amf::AMF0Value<'a>,
     },
-    Data,
-    SharedObject,
+    Data(Vec<amf::AMF0Value<'a>>),
     Audio(&'a [u8]),
     Video(&'a [u8]),
-    // Aggregate, // leave unsupported for now, unless we see it in use
+    // leave unsupported for now, unless we see it in use
+    // SharedObject,
+    // Aggregate,
 }
 
 impl<'a> CommandMessage<'a> {
@@ -67,10 +64,14 @@ impl<'a> CommandMessage<'a> {
     ) -> Result<CommandMessage<'a>, ParseError> {
         match *message_type_id {
             command_message_type::COMMAND_AMF0 => CommandMessage::parse_command(buf),
-            // command_message_type::DATA_AMF0 => CommandMessage::Data,
-            // command_message_type::SHARED_OBJECT_AMF0 => CommandMessage::SharedObject,
+            command_message_type::DATA_AMF0 => CommandMessage::parse_data_message(buf),
             command_message_type::AUDIO => Ok(CommandMessage::Audio(buf)),
             command_message_type::VIDEO => Ok(CommandMessage::Video(buf)),
+
+            command_message_type::SHARED_OBJECT_AMF0 => {
+                warn!("Unhandled shared object message found");
+                Err(ParseError::InvalidMessageType(*message_type_id))
+            }
             command_message_type::AGGREGATE => {
                 warn!("Unhandled aggregate message found");
                 Err(ParseError::InvalidMessageType(*message_type_id))
@@ -83,6 +84,16 @@ impl<'a> CommandMessage<'a> {
             }
             e => Err(ParseError::InvalidMessageType(e)),
         }
+    }
+
+    fn parse_data_message(buf: &'a [u8]) -> Result<CommandMessage<'a>, ParseError> {
+        let mut data = Vec::new();
+        let mut decoder = amf::Decoder::new(buf);
+        while !decoder.get_buf()?.is_empty() {
+            data.push(decoder.decode()?);
+        }
+
+        Ok(CommandMessage::Data(data))
     }
 
     fn parse_command(buf: &'a [u8]) -> Result<CommandMessage<'a>, ParseError> {
