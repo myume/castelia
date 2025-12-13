@@ -7,7 +7,7 @@ use tokio::{
     net::TcpStream,
     time::timeout,
 };
-use tracing::trace;
+use tracing::{debug, trace};
 
 use crate::chunks::header::{ChunkHeader, ParseChunkHeaderError};
 
@@ -63,7 +63,7 @@ impl Chunk {
         max_chunk_size: &usize,
     ) -> Result<Self, ParseChunkError> {
         let header = timeout(Duration::from_secs(30), ChunkHeader::read_header(reader)).await??;
-        trace!("chunk header has been parsed:\n{:#?}", header);
+        debug!("chunk header has been parsed:\n{:#?}", header);
 
         let max_bytes_remaining = max_chunk_size - header.len();
         let payload_size =

@@ -10,6 +10,7 @@ use crate::{
     chunks::{Chunk, chunk_mux::ChunkMultiplexer},
     handshake::handshake,
     messages::Message,
+    netconnection::NetConnection,
 };
 
 pub struct RTMPSever {
@@ -53,16 +54,16 @@ async fn handle_rtmp_connection(mut connection: RTMPConnection) {
 #[derive(Debug)]
 struct RTMPConnection {
     socket: TcpStream,
-    max_chunk_size: usize,
     chunk_mux: ChunkMultiplexer,
+    net_connection: NetConnection,
 }
 
 impl RTMPConnection {
     pub fn new(socket: TcpStream) -> Self {
         Self {
             socket,
-            max_chunk_size: 4096,
             chunk_mux: ChunkMultiplexer::new(),
+            net_connection: NetConnection::new(),
         }
     }
 
@@ -71,12 +72,20 @@ impl RTMPConnection {
 
         let mut reader = BufReader::new(&mut self.socket);
         loop {
-            let chunk = Chunk::read_chunk(&mut reader, &self.max_chunk_size).await?;
+            let chunk = Chunk::read_chunk(
+                &mut reader,
+                &(self.net_connection.max_chunk_size() as usize),
+            )
+            .await?;
             trace!("finished reading chunk");
 
-            if let Some((message_bytes, message_type_id)) = self.chunk_mux.receive_chunk(chunk) {
+            if let Some((message_bytes, message_type_id, message_stream_id)) =
+                self.chunk_mux.receive_chunk(chunk)
+            {
                 match Message::parse_message(&message_bytes, message_type_id) {
-                    Ok(msg) => debug!("message received:\n{:#?}", msg),
+                    Ok(msg) => {
+                        debug!("message received:\n{:#?}", msg);
+                    }
                     Err(e) => error!("unable to parse message: {e}"),
                 };
             }
