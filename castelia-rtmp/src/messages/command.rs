@@ -1,4 +1,5 @@
 use thiserror::Error;
+use tracing::warn;
 
 use crate::{
     amf::{self},
@@ -32,9 +33,6 @@ pub enum ParseError {
     ),
     #[error("Invalid command: {0}")]
     InvalidCommand(String),
-    #[error("Invalid transaction id: {0}")]
-    InvalidTransationId(String),
-
     #[error("Failed to cast AMF encoded value: {0}")]
     CastError(
         #[source]
@@ -59,7 +57,7 @@ pub enum CommandMessage<'a> {
     SharedObject,
     Audio(&'a [u8]),
     Video(&'a [u8]),
-    Aggregate,
+    // Aggregate, // leave unsupported for now, unless we see it in use
 }
 
 impl<'a> CommandMessage<'a> {
@@ -73,10 +71,16 @@ impl<'a> CommandMessage<'a> {
             // command_message_type::SHARED_OBJECT_AMF0 => CommandMessage::SharedObject,
             command_message_type::AUDIO => Ok(CommandMessage::Audio(buf)),
             command_message_type::VIDEO => Ok(CommandMessage::Video(buf)),
-            // command_message_type::AGGREGATE => {}
+            command_message_type::AGGREGATE => {
+                warn!("Unhandled aggregate message found");
+                Err(ParseError::InvalidMessageType(*message_type_id))
+            }
             command_message_type::COMMAND_AMF3
             | command_message_type::DATA_AMF3
-            | command_message_type::SHARED_OBJECT_AMF3 => Err(ParseError::UnsupportedEncoding),
+            | command_message_type::SHARED_OBJECT_AMF3 => {
+                warn!("Unsupported AMF3 encoded message found");
+                Err(ParseError::UnsupportedEncoding)
+            }
             e => Err(ParseError::InvalidMessageType(e)),
         }
     }
