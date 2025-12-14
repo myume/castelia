@@ -13,13 +13,12 @@ struct PartialMessage {
     bytes: BytesMut,
 }
 
-/// Receives chunks and multiplexes it to the correct chunk stream
 #[derive(Debug)]
-pub struct ChunkDemultiplexer {
+pub struct ChunkHandler {
     chunk_streams: HashMap<CSId, PartialMessage>,
 }
 
-impl ChunkDemultiplexer {
+impl ChunkHandler {
     pub fn receive_chunk(&mut self, chunk: Chunk) -> Option<(Bytes, u8, u32)> {
         let cs_id = chunk.header.chunk_stream_id();
         if let Some(partial) = self.chunk_streams.get_mut(&cs_id) {

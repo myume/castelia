@@ -10,7 +10,7 @@ use tracing::{debug, trace};
 
 use crate::chunks::header::{ChunkHeader, ParseChunkHeaderError};
 
-pub mod chunk_mux;
+pub mod chunk_handler;
 pub mod header;
 
 type CSId = u32;

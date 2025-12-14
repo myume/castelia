@@ -9,7 +9,7 @@ use tokio::{
 use tracing::{Instrument, debug, error, info, instrument, trace};
 
 use crate::{
-    chunks::{Chunk, chunk_mux::ChunkDemultiplexer, header::MessageHeader},
+    chunks::{Chunk, chunk_handler::ChunkHandler, header::MessageHeader},
     handshake::handshake,
     messages::{Message, router::MessageRouter},
 };
@@ -59,7 +59,7 @@ async fn handle_rtmp_connection(mut connection: RTMPConnection) {
 #[derive(Debug)]
 struct RTMPConnection {
     socket: TcpStream,
-    chunk_demux: ChunkDemultiplexer,
+    chunk_handler: ChunkHandler,
     message_router: MessageRouter,
 }
 
@@ -67,7 +67,7 @@ impl RTMPConnection {
     pub fn new(socket: TcpStream) -> Self {
         Self {
             socket,
-            chunk_demux: ChunkDemultiplexer::new(),
+            chunk_handler: ChunkHandler::new(),
             message_router: MessageRouter::new(),
         }
     }
@@ -87,7 +87,7 @@ impl RTMPConnection {
             trace!("finished reading chunk");
 
             if let Some((message_bytes, message_type_id, message_stream_id)) =
-                self.chunk_demux.receive_chunk(chunk)
+                self.chunk_handler.receive_chunk(chunk)
             {
                 match Message::parse_message(&message_bytes, message_type_id) {
                     Ok(msg) => {
