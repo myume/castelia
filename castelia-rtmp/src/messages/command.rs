@@ -2,7 +2,9 @@ use bytes::Bytes;
 use thiserror::Error;
 use tracing::warn;
 
-use crate::{amf, netconnection::NetConnectionCommandType, netstream::command::NetStreamCommand};
+use crate::{
+    amf, netconnection::command::NetConnectionCommandType, netstream::command::NetStreamCommand,
+};
 
 pub mod command_message_type {
     pub const COMMAND_AMF0: u8 = 20;
