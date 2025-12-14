@@ -28,7 +28,7 @@ impl From<ParseError> for ParseMessageError {
 }
 
 #[derive(Debug)]
-pub enum ProtolControlMessage {
+pub enum ProtocolControlMessage {
     SetChunkSize(u32),
     Abort(u32),
     Ack(u32),
@@ -36,7 +36,7 @@ pub enum ProtolControlMessage {
     SetPeerBandwidth { limit_type: u8, window_size: u32 },
 }
 
-impl ProtolControlMessage {
+impl ProtocolControlMessage {
     pub fn parse_message(buf: &[u8], message_type_id: &u8) -> Result<Self, ParseError> {
         let data = u32::from_be_bytes(
             buf.get(..4)

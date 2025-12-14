@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::messages::{
     command::{CommandMessage, command_message_type},
-    protocol_control::{ProtolControlMessage, protocol_control_type},
+    protocol_control::{ProtocolControlMessage, protocol_control_type},
     user_control::{USER_CONTROL_TYPE, UserControlMessage},
 };
 
@@ -34,7 +34,7 @@ pub enum ParseMessageError {
 
 #[derive(Debug)]
 pub enum Message<'a> {
-    Protocol(ProtolControlMessage),
+    Protocol(ProtocolControlMessage),
     UserControl(UserControlMessage),
     Command(CommandMessage<'a>),
 }
@@ -46,9 +46,9 @@ impl<'a> Message<'a> {
             | protocol_control_type::ABORT
             | protocol_control_type::ACK
             | protocol_control_type::WINDOW_ACK_SIZE
-            | protocol_control_type::SET_PEER_BANDWIDTH => {
-                Self::Protocol(ProtolControlMessage::parse_message(buf, &message_type_id)?)
-            }
+            | protocol_control_type::SET_PEER_BANDWIDTH => Self::Protocol(
+                ProtocolControlMessage::parse_message(buf, &message_type_id)?,
+            ),
 
             USER_CONTROL_TYPE => Self::UserControl(UserControlMessage::parse_message(buf)?),
 

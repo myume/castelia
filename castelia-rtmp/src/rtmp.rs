@@ -56,6 +56,8 @@ async fn handle_rtmp_connection(mut connection: RTMPConnection) {
     }
 }
 
+pub(crate) type SendQueueMessage = (MessageHeader, Bytes);
+
 #[derive(Debug)]
 struct RTMPConnection {
     socket: TcpStream,
@@ -82,7 +84,7 @@ impl RTMPConnection {
 
         let mut reader = BufReader::new(read_half);
         loop {
-            let max_chunk_size = self.message_router.netconnection().max_chunk_size() as usize;
+            let max_chunk_size = self.message_router.net_connection().max_chunk_size() as usize;
             let chunk = Chunk::read_chunk(&mut reader, &max_chunk_size).await?;
             trace!("finished reading chunk");
 
@@ -103,7 +105,7 @@ impl RTMPConnection {
     }
 
     #[instrument(skip_all)]
-    async fn send_pending_messages(mut send_queue: mpsc::Receiver<(MessageHeader, Bytes)>) {
+    async fn send_pending_messages(mut send_queue: mpsc::Receiver<SendQueueMessage>) {
         info!("initialized outbound message processor");
         while let Some((message_header, payload)) = send_queue.recv().await {
             // chunk payload and send chunks
