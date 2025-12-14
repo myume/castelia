@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use thiserror::Error;
 
 use crate::messages::{
@@ -39,7 +40,7 @@ pub enum Message<'a> {
 }
 
 impl<'a> Message<'a> {
-    pub fn parse_message(buf: &'a [u8], message_type_id: u8) -> Result<Self, ParseMessageError> {
+    pub fn parse_message(buf: &'a Bytes, message_type_id: u8) -> Result<Self, ParseMessageError> {
         Ok(match message_type_id {
             protocol_control_type::SET_CHUNK_SIZE
             | protocol_control_type::ABORT

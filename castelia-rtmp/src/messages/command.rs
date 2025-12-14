@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use thiserror::Error;
 use tracing::warn;
 
@@ -50,8 +51,8 @@ pub enum CommandMessage<'a> {
         command_object: amf::AMF0Value<'a>,
     },
     Data(Vec<amf::AMF0Value<'a>>),
-    Audio(&'a [u8]),
-    Video(&'a [u8]),
+    Audio(Bytes),
+    Video(Bytes),
     // leave unsupported for now, unless we see it in use
     // SharedObject,
     // Aggregate,
@@ -59,14 +60,14 @@ pub enum CommandMessage<'a> {
 
 impl<'a> CommandMessage<'a> {
     pub fn parse_message(
-        buf: &'a [u8],
+        bytes: &'a Bytes,
         message_type_id: &u8,
     ) -> Result<CommandMessage<'a>, ParseError> {
         match *message_type_id {
-            command_message_type::COMMAND_AMF0 => CommandMessage::parse_command(buf),
-            command_message_type::DATA_AMF0 => CommandMessage::parse_data_message(buf),
-            command_message_type::AUDIO => Ok(CommandMessage::Audio(buf)),
-            command_message_type::VIDEO => Ok(CommandMessage::Video(buf)),
+            command_message_type::COMMAND_AMF0 => CommandMessage::parse_command(bytes),
+            command_message_type::DATA_AMF0 => CommandMessage::parse_data_message(bytes),
+            command_message_type::AUDIO => Ok(CommandMessage::Audio(bytes.clone())),
+            command_message_type::VIDEO => Ok(CommandMessage::Video(bytes.clone())),
 
             command_message_type::SHARED_OBJECT_AMF0 => {
                 warn!("Unhandled shared object message found");
