@@ -37,7 +37,7 @@ impl From<ParseChunkHeaderError> for io::Error {
 }
 
 #[derive(Debug, PartialEq)]
-enum MessageHeader {
+pub enum MessageHeader {
     Type0 {
         timestamp: u32,
         message_length: u32,
@@ -62,7 +62,7 @@ enum MessageHeader {
 // We will revisit this if it's an issue.
 // We are trading some extra space for less conversions between bytes to a u32
 #[derive(Debug, PartialEq)]
-struct BasicHeader {
+pub struct BasicHeader {
     chunk_type: u8,
     chunk_stream_id: CSId,
     header_type: u8,
@@ -89,7 +89,7 @@ impl MessageHeader {
             _ => None,
         }
     }
-    pub fn len(&self) -> usize {
+    pub fn bytes_read(&self) -> usize {
         match self {
             MessageHeader::Type0 { .. } => 11,
             MessageHeader::Type1 { .. } => 7,
@@ -183,7 +183,7 @@ where
 }
 
 impl BasicHeader {
-    pub fn len(&self) -> usize {
+    pub fn bytes_read(&self) -> usize {
         match self.header_type {
             0 => 2,
             1 => 3,
@@ -234,9 +234,9 @@ impl ChunkHeader {
     /// Return the number of bytes read in the header.
     ///
     /// This is the size of the *actual* header, not the internal representation
-    pub fn len(&self) -> usize {
-        self.basic_header.len()
-            + self.message_header.len()
+    pub fn bytes_read(&self) -> usize {
+        self.basic_header.bytes_read()
+            + self.message_header.bytes_read()
             + if self.extended_timestamp.is_some() {
                 4
             } else {

@@ -1,4 +1,7 @@
-use crate::{messages::Message, netconnection::NetConnection};
+use bytes::Bytes;
+use tokio::sync::mpsc::Sender;
+
+use crate::{chunks::header::MessageHeader, messages::Message, netconnection::NetConnection};
 
 #[derive(Debug)]
 pub struct MessageRouter {
@@ -16,5 +19,12 @@ impl MessageRouter {
         &self.net_connection
     }
 
-    pub fn route_message(&mut self, message: Message, message_stream_id: u32) {}
+    pub async fn route_message<'a>(
+        &mut self,
+        message: Message<'a>,
+        message_stream_id: u32,
+        sender: Sender<(MessageHeader, Bytes)>,
+    ) {
+        // sender.send(message).await;
+    }
 }

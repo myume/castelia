@@ -11,7 +11,7 @@ use tracing::{debug, trace};
 use crate::chunks::header::{ChunkHeader, ParseChunkHeaderError};
 
 pub mod chunk_mux;
-mod header;
+pub mod header;
 
 type CSId = u32;
 
@@ -67,7 +67,7 @@ impl Chunk {
         let header = timeout(Duration::from_secs(30), ChunkHeader::read_header(reader)).await??;
         debug!("chunk header has been parsed:\n{:#?}", header);
 
-        let max_bytes_remaining = max_chunk_size - header.len();
+        let max_bytes_remaining = max_chunk_size - header.bytes_read();
         let payload_size =
             max_bytes_remaining.min(header.get_message_length().unwrap_or(0) as usize);
 

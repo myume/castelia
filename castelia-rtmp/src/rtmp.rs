@@ -1,24 +1,30 @@
-use std::io;
+use std::{collections::HashMap, io};
 
+use bytes::Bytes;
 use tokio::{
     io::BufReader,
     net::{TcpListener, TcpStream},
+    sync::mpsc,
 };
 use tracing::{debug, error, instrument, trace};
 
 use crate::{
-    chunks::{Chunk, chunk_mux::ChunkDemultiplexer},
+    chunks::{Chunk, chunk_mux::ChunkDemultiplexer, header::MessageHeader},
     handshake::handshake,
     messages::{Message, router::MessageRouter},
 };
 
 pub struct RTMPSever {
     listener: TcpListener,
+    streams: HashMap<String, tokio::sync::broadcast::Sender<Bytes>>,
 }
 
 impl RTMPSever {
     pub fn new(listener: TcpListener) -> Self {
-        Self { listener }
+        Self {
+            listener,
+            streams: HashMap::new(),
+        }
     }
 
     pub async fn run(&self) -> io::Result<()> {
@@ -70,6 +76,10 @@ impl RTMPConnection {
         handshake(&mut self.socket).await?;
 
         let (read_half, _write_half) = self.socket.split();
+
+        let (sender, send_queue) = mpsc::channel(100);
+        tokio::spawn(Self::process_send_queue(send_queue));
+
         let mut reader = BufReader::new(read_half);
         loop {
             let max_chunk_size = self.message_router.netconnection().max_chunk_size() as usize;
@@ -82,11 +92,19 @@ impl RTMPConnection {
                 match Message::parse_message(&message_bytes, message_type_id) {
                     Ok(msg) => {
                         debug!("message received:\n{:#?}", msg);
-                        self.message_router.route_message(msg, message_stream_id);
+                        self.message_router
+                            .route_message(msg, message_stream_id, sender.clone())
+                            .await;
                     }
                     Err(e) => error!("unable to parse message: {e}"),
                 };
             }
+        }
+    }
+
+    async fn process_send_queue(mut send_queue: mpsc::Receiver<(MessageHeader, Bytes)>) {
+        while let Some((message_header, payload)) = send_queue.recv().await {
+            // chunk payload and send chunks
         }
     }
 }

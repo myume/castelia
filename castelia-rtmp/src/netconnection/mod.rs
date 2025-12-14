@@ -35,5 +35,5 @@ impl NetConnection {
         self.max_chunk_size
     }
 
-    pub fn handle_message() {}
+    pub fn handle_message(message: Message) {}
 }
