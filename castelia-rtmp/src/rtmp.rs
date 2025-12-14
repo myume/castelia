@@ -6,7 +6,7 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::mpsc,
 };
-use tracing::{debug, error, instrument, trace};
+use tracing::{Instrument, debug, error, info, instrument, trace};
 
 use crate::{
     chunks::{Chunk, chunk_mux::ChunkDemultiplexer, header::MessageHeader},
@@ -78,7 +78,7 @@ impl RTMPConnection {
         let (read_half, _write_half) = self.socket.split();
 
         let (sender, send_queue) = mpsc::channel(100);
-        tokio::spawn(Self::process_send_queue(send_queue));
+        tokio::spawn(Self::send_pending_messages(send_queue).in_current_span());
 
         let mut reader = BufReader::new(read_half);
         loop {
@@ -91,7 +91,7 @@ impl RTMPConnection {
             {
                 match Message::parse_message(&message_bytes, message_type_id) {
                     Ok(msg) => {
-                        debug!("message received:\n{:#?}", msg);
+                        info!("message received:\n{:#?}", msg);
                         self.message_router
                             .route_message(msg, message_stream_id, sender.clone())
                             .await;
@@ -102,7 +102,9 @@ impl RTMPConnection {
         }
     }
 
-    async fn process_send_queue(mut send_queue: mpsc::Receiver<(MessageHeader, Bytes)>) {
+    #[instrument(skip_all)]
+    async fn send_pending_messages(mut send_queue: mpsc::Receiver<(MessageHeader, Bytes)>) {
+        info!("initialized outbound message processor");
         while let Some((message_header, payload)) = send_queue.recv().await {
             // chunk payload and send chunks
         }
