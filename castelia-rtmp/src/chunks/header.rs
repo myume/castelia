@@ -1,10 +1,7 @@
 use std::io;
 
 use thiserror::Error;
-use tokio::{
-    io::{AsyncReadExt, BufReader},
-    net::TcpStream,
-};
+use tokio::io::{AsyncReadExt, BufReader};
 use tracing::trace;
 
 use crate::chunks::CSId;
@@ -113,9 +110,10 @@ impl MessageHeader {
             }
     }
 
-    async fn parse_type0(
-        reader: &mut BufReader<&mut TcpStream>,
-    ) -> Result<Self, ParseChunkHeaderError> {
+    async fn parse_type0<T>(reader: &mut BufReader<T>) -> Result<Self, ParseChunkHeaderError>
+    where
+        T: AsyncReadExt + std::marker::Unpin,
+    {
         let timestamp = read_3_be_bytes_to_u32(reader).await?;
         let message_length = read_3_be_bytes_to_u32(reader).await?;
         let message_type_id = reader.read_u8().await?;
@@ -129,9 +127,10 @@ impl MessageHeader {
         })
     }
 
-    async fn parse_type1(
-        reader: &mut BufReader<&mut TcpStream>,
-    ) -> Result<Self, ParseChunkHeaderError> {
+    async fn parse_type1<T>(reader: &mut BufReader<T>) -> Result<Self, ParseChunkHeaderError>
+    where
+        T: AsyncReadExt + std::marker::Unpin,
+    {
         let timestamp_delta = read_3_be_bytes_to_u32(reader).await?;
         let message_length = read_3_be_bytes_to_u32(reader).await?;
         let message_type_id = reader.read_u8().await?;
@@ -141,9 +140,10 @@ impl MessageHeader {
             message_type_id,
         })
     }
-    async fn parse_type2(
-        reader: &mut BufReader<&mut TcpStream>,
-    ) -> Result<Self, ParseChunkHeaderError> {
+    async fn parse_type2<T>(reader: &mut BufReader<T>) -> Result<Self, ParseChunkHeaderError>
+    where
+        T: AsyncReadExt + std::marker::Unpin,
+    {
         Ok(Self::Type2 {
             timestamp_delta: read_3_be_bytes_to_u32(reader).await?,
         })
@@ -152,10 +152,13 @@ impl MessageHeader {
         Ok(Self::Type3)
     }
 
-    async fn parse(
-        reader: &mut BufReader<&mut TcpStream>,
+    async fn parse<T>(
+        reader: &mut BufReader<T>,
         chunk_type: &u8,
-    ) -> Result<Self, ParseChunkHeaderError> {
+    ) -> Result<Self, ParseChunkHeaderError>
+    where
+        T: AsyncReadExt + std::marker::Unpin,
+    {
         trace!("parsing chunk message header");
         match *chunk_type {
             0 => Self::parse_type0(reader).await,
@@ -167,9 +170,10 @@ impl MessageHeader {
     }
 }
 
-pub async fn read_3_be_bytes_to_u32(
-    reader: &mut BufReader<&mut TcpStream>,
-) -> Result<u32, io::Error> {
+pub async fn read_3_be_bytes_to_u32<T>(reader: &mut BufReader<T>) -> Result<u32, io::Error>
+where
+    T: AsyncReadExt + std::marker::Unpin,
+{
     Ok(u32::from_be_bytes([
         0x00,
         reader.read_u8().await?,
@@ -194,7 +198,10 @@ impl BasicHeader {
         self.chunk_stream_id
     }
 
-    async fn parse(reader: &mut BufReader<&mut TcpStream>) -> Result<Self, ParseChunkHeaderError> {
+    async fn parse<T>(reader: &mut BufReader<T>) -> Result<Self, ParseChunkHeaderError>
+    where
+        T: AsyncReadExt + std::marker::Unpin,
+    {
         trace!("parsing chunk basic header");
         let byte1 = reader.read_u8().await?;
 
@@ -249,9 +256,10 @@ impl ChunkHeader {
         self.message_header.get_message_stream_id()
     }
 
-    pub async fn read_header(
-        reader: &mut BufReader<&mut TcpStream>,
-    ) -> Result<Self, ParseChunkHeaderError> {
+    pub async fn read_header<T>(reader: &mut BufReader<T>) -> Result<Self, ParseChunkHeaderError>
+    where
+        T: AsyncReadExt + std::marker::Unpin,
+    {
         trace!("reading chunk header");
         let basic_header = BasicHeader::parse(reader).await?;
         let message_header = MessageHeader::parse(reader, &basic_header.chunk_type()).await?;
@@ -281,7 +289,10 @@ impl ChunkHeader {
 
 #[cfg(test)]
 mod tests {
-    use tokio::{io::AsyncWriteExt, net::TcpListener};
+    use tokio::{
+        io::AsyncWriteExt,
+        net::{TcpListener, TcpStream},
+    };
 
     use super::*;
 

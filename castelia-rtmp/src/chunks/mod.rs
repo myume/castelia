@@ -4,7 +4,6 @@ use bytes::{Bytes, BytesMut};
 use thiserror::Error;
 use tokio::{
     io::{AsyncReadExt, BufReader},
-    net::TcpStream,
     time::timeout,
 };
 use tracing::{debug, trace};
@@ -58,10 +57,13 @@ impl From<ParseChunkError> for io::Error {
 
 impl Chunk {
     /// Read a Chunk from the stream
-    pub async fn read_chunk(
-        reader: &mut BufReader<&mut TcpStream>,
+    pub async fn read_chunk<T>(
+        reader: &mut BufReader<T>,
         max_chunk_size: &usize,
-    ) -> Result<Self, ParseChunkError> {
+    ) -> Result<Self, ParseChunkError>
+    where
+        T: AsyncReadExt + std::marker::Unpin,
+    {
         let header = timeout(Duration::from_secs(30), ChunkHeader::read_header(reader)).await??;
         debug!("chunk header has been parsed:\n{:#?}", header);
 

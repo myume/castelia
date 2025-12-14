@@ -69,7 +69,8 @@ impl RTMPConnection {
     async fn process(&mut self) -> io::Result<()> {
         handshake(&mut self.socket).await?;
 
-        let mut reader = BufReader::new(&mut self.socket);
+        let (read_half, _write_half) = self.socket.split();
+        let mut reader = BufReader::new(read_half);
         loop {
             let max_chunk_size = self.message_router.netconnection().max_chunk_size() as usize;
             let chunk = Chunk::read_chunk(&mut reader, &max_chunk_size).await?;
