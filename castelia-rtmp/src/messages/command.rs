@@ -44,7 +44,7 @@ pub enum ParseError {
 
 #[derive(Debug)]
 pub enum CommandMessage<'a> {
-    NetConnectionCommand(NetConnectionCommand<'a>),
+    NetConnection(NetConnectionCommand<'a>),
     NetStreamCommand {
         command: NetStreamCommand<'a>,
         transaction_id: f64,
@@ -129,7 +129,7 @@ impl<'a> CommandMessage<'a> {
         let mut decoder = amf::Decoder::new(buf);
         let (command_type, transaction_id, command_object) =
             CommandMessage::parse_base_command(&mut decoder)?;
-        Ok(CommandMessage::NetConnectionCommand(NetConnectionCommand {
+        Ok(CommandMessage::NetConnection(NetConnectionCommand {
             command_type: command_type.into(),
             transaction_id,
             command_object,
