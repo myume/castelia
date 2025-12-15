@@ -3,7 +3,9 @@ use thiserror::Error;
 use tracing::warn;
 
 use crate::{
-    amf, netconnection::command::NetConnectionCommandType, netstream::command::NetStreamCommand,
+    amf,
+    netconnection::command::{NetConnectionCommand, NetConnectionCommandType},
+    netstream::command::NetStreamCommand,
 };
 
 pub mod command_message_type {
@@ -42,11 +44,7 @@ pub enum ParseError {
 
 #[derive(Debug)]
 pub enum CommandMessage<'a> {
-    NetConnectionCommand {
-        command_type: NetConnectionCommandType<'a>,
-        transaction_id: f64,
-        command_object: amf::AMF0Value<'a>,
-    },
+    NetConnectionCommand(NetConnectionCommand<'a>),
     NetStreamCommand {
         command: NetStreamCommand<'a>,
         transaction_id: f64,
@@ -131,10 +129,10 @@ impl<'a> CommandMessage<'a> {
         let mut decoder = amf::Decoder::new(buf);
         let (command_type, transaction_id, command_object) =
             CommandMessage::parse_base_command(&mut decoder)?;
-        Ok(CommandMessage::NetConnectionCommand {
+        Ok(CommandMessage::NetConnectionCommand(NetConnectionCommand {
             command_type: command_type.into(),
             transaction_id,
             command_object,
-        })
+        }))
     }
 }

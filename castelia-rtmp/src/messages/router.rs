@@ -1,16 +1,25 @@
+use std::collections::HashMap;
+
 use tokio::sync::mpsc::Sender;
+use tracing::warn;
 
-use crate::{messages::Message, netconnection::NetConnection, rtmp::SendQueueMessage};
+use crate::{
+    messages::{Message, command::CommandMessage},
+    netconnection::NetConnection,
+    netstream::NetStream,
+    rtmp::SendQueueMessage,
+};
 
-#[derive(Debug)]
 pub struct MessageRouter {
     net_connection: NetConnection,
+    message_streams: HashMap<u32, NetStream>,
 }
 
 impl MessageRouter {
     pub fn new() -> Self {
         Self {
             net_connection: NetConnection::new(),
+            message_streams: HashMap::new(),
         }
     }
 
@@ -21,7 +30,7 @@ impl MessageRouter {
     pub async fn route_message<'a>(
         &mut self,
         message: Message<'a>,
-        _message_stream_id: u32,
+        message_stream_id: u32,
         send_queue: Sender<SendQueueMessage>,
     ) {
         match message {
@@ -35,7 +44,17 @@ impl MessageRouter {
                     .handle_user_control_message(user_control_message, send_queue)
                     .await
             }
-            Message::Command(command_message) => todo!(),
+            Message::Command(command_message) => {
+                if message_stream_id == 0 {
+                    if let CommandMessage::NetConnectionCommand(command) = command_message {
+                        // self.net_connection.handle_command();
+                    } else {
+                        warn!("");
+                    }
+                } else {
+                    let stream = self.message_streams.get(&message_stream_id);
+                }
+            }
         }
     }
 }

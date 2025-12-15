@@ -1,3 +1,5 @@
+use crate::amf;
+
 #[derive(Debug)]
 pub enum NetConnectionCommandType<'a> {
     Connect,
@@ -15,4 +17,11 @@ impl<'a> From<&'a str> for NetConnectionCommandType<'a> {
             procedure_name => Self::Call(procedure_name),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct NetConnectionCommand<'a> {
+    pub command_type: NetConnectionCommandType<'a>,
+    pub transaction_id: f64,
+    pub command_object: amf::AMF0Value<'a>,
 }

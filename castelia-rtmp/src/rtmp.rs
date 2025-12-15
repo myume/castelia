@@ -58,7 +58,6 @@ async fn handle_rtmp_connection(mut connection: RTMPConnection) {
 
 pub(crate) type SendQueueMessage = (MessageHeader, Bytes);
 
-#[derive(Debug)]
 struct RTMPConnection {
     socket: TcpStream,
     chunk_handler: ChunkHandler,
