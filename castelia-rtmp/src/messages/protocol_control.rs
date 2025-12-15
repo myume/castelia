@@ -28,12 +28,18 @@ impl From<ParseError> for ParseMessageError {
 }
 
 #[derive(Debug)]
+pub struct PeerBandwidth {
+    pub limit_type: u8,
+    pub window_size: u32,
+}
+
+#[derive(Debug)]
 pub enum ProtocolControlMessage {
     SetChunkSize(u32),
     Abort(u32),
     Ack(u32),
     AckWindowSize(u32),
-    SetPeerBandwidth { limit_type: u8, window_size: u32 },
+    SetPeerBandwidth(PeerBandwidth),
 }
 
 impl ProtocolControlMessage {
@@ -49,10 +55,10 @@ impl ProtocolControlMessage {
             protocol_control_type::ABORT => Self::Abort(data),
             protocol_control_type::ACK => Self::Ack(data),
             protocol_control_type::WINDOW_ACK_SIZE => Self::AckWindowSize(data),
-            protocol_control_type::SET_PEER_BANDWIDTH => Self::SetPeerBandwidth {
+            protocol_control_type::SET_PEER_BANDWIDTH => Self::SetPeerBandwidth(PeerBandwidth {
                 window_size: data,
                 limit_type: *buf.get(5).ok_or(ParseError::InvalidMessageSize)?,
-            },
+            }),
             _ => return Err(ParseError::InvalidMessageTypeId(*message_type_id)),
         })
     }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bytes::{Bytes, BytesMut};
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::chunks::{CSId, Chunk};
 
@@ -52,6 +52,12 @@ impl ChunkHandler {
             ))
         } else {
             None
+        }
+    }
+
+    pub fn abort(&mut self, chunk_stream_id: CSId) {
+        if self.chunk_streams.remove(&chunk_stream_id).is_none() {
+            warn!("Aborting nonexisitent chunk stream {chunk_stream_id}");
         }
     }
 

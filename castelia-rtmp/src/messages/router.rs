@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use thiserror::Error;
 use tokio::sync::mpsc::Sender;
@@ -8,7 +11,7 @@ use crate::{
     messages::{Message, command::CommandMessage},
     netconnection::NetConnection,
     netstream::NetStream,
-    rtmp::SendQueueMessage,
+    rtmp::{RTMPConnectionState, SendQueueMessage},
 };
 
 #[derive(Error, Debug)]
@@ -32,15 +35,12 @@ impl MessageRouter {
         }
     }
 
-    pub fn net_connection(&self) -> &NetConnection {
-        &self.net_connection
-    }
-
     pub async fn route_message<'a>(
         &mut self,
         message: Message<'a>,
         message_stream_id: u32,
         send_queue: Sender<SendQueueMessage>,
+        connection_state: Arc<Mutex<RTMPConnectionState>>,
     ) -> Result<(), RouteError> {
         match message {
             Message::Protocol(protocol_control_message) => {
@@ -49,7 +49,7 @@ impl MessageRouter {
                     return Err(RouteError::InvalidNetconnectionRoute(message_stream_id));
                 }
                 self.net_connection
-                    .handle_protocol_message(protocol_control_message, send_queue)
+                    .handle_protocol_message(protocol_control_message, connection_state)
                     .await
             }
             Message::UserControl(user_control_message) => {

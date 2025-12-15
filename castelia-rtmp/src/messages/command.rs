@@ -3,9 +3,7 @@ use thiserror::Error;
 use tracing::warn;
 
 use crate::{
-    amf,
-    netconnection::command::{NetConnectionCommand, NetConnectionCommandType},
-    netstream::command::NetStreamCommand,
+    amf, netconnection::command::NetConnectionCommand, netstream::command::NetStreamCommand,
 };
 
 pub mod command_message_type {
