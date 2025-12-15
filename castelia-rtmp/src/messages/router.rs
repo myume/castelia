@@ -22,16 +22,42 @@ pub enum RouteError {
     InvalidNetconnectionRoute(u32),
 }
 
+#[derive(Default)]
+pub struct MessageStream {
+    message_streams: HashMap<u32, NetStream>,
+}
+
+impl MessageStream {
+    pub fn get(&self, msid: &u32) -> Option<&NetStream> {
+        self.message_streams.get(msid)
+    }
+
+    pub fn create_stream(&mut self) -> u32 {
+        // We're going to use a naive implementation where we just keep appending new streams to
+        // the hashmap which increments the stream id. This will be an issue if there's enough
+        // streams to overflow a u32. We're going to assume that it's highly unlikely and dumb if
+        // it happens.
+        let message_stream_id = self.message_streams.len() as u32;
+        self.message_streams
+            .insert(message_stream_id, NetStream::new());
+        message_stream_id
+    }
+
+    pub fn delete_stream(&mut self, msid: &u32) -> Option<NetStream> {
+        self.message_streams.remove(msid)
+    }
+}
+
 pub struct MessageRouter {
     net_connection: NetConnection,
-    message_streams: HashMap<u32, NetStream>,
+    message_streams: MessageStream,
 }
 
 impl MessageRouter {
     pub fn new() -> Self {
         Self {
             net_connection: NetConnection::new(),
-            message_streams: HashMap::new(),
+            message_streams: MessageStream::default(),
         }
     }
 
@@ -68,11 +94,16 @@ impl MessageRouter {
                         return Err(RouteError::InvalidNetconnectionRoute(message_stream_id));
                     }
                     self.net_connection
-                        .handle_command(command, send_queue)
+                        .handle_command(
+                            &message_stream_id,
+                            command,
+                            send_queue,
+                            &mut self.message_streams,
+                        )
                         .await;
                 } else {
                     trace!("routing message to netstream {message_stream_id}");
-                    let Some(stream) = self.message_streams.get(&message_stream_id) else {
+                    let Some(_stream) = self.message_streams.get(&message_stream_id) else {
                         return Err(RouteError::MissingNetStream(message_stream_id));
                     };
                 }
