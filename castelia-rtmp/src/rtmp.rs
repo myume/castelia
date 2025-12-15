@@ -1,12 +1,13 @@
 use std::{
     collections::HashMap,
     io,
+    net::SocketAddr,
     sync::{Arc, Mutex},
 };
 
 use bytes::Bytes;
 use tokio::{
-    io::BufReader,
+    io::{AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
     sync::mpsc,
 };
@@ -37,7 +38,7 @@ impl RTMPSever {
             debug!("Accepted connection from {addr}");
 
             tokio::spawn(async move {
-                handle_rtmp_connection(RTMPConnection::new(socket)).await;
+                handle_rtmp_connection(socket, addr).await;
             });
         }
     }
@@ -47,15 +48,12 @@ impl RTMPSever {
     name = "RTMP connection",
     skip_all,
     fields(
-        address = connection
-                    .socket
-                    .peer_addr()
-                    .map(|addr| addr.to_string())
-                    .unwrap_or("unknown address".to_owned())
+        address =  addr.to_string()
     )
 )]
-async fn handle_rtmp_connection(mut connection: RTMPConnection) {
-    if let Err(e) = connection.process().await {
+async fn handle_rtmp_connection(socket: TcpStream, addr: SocketAddr) {
+    let mut connection = RTMPConnection::new();
+    if let Err(e) = connection.process(socket).await {
         error!("Failed to process rtmp connection: {e}");
     }
 }
@@ -92,30 +90,27 @@ impl Default for RTMPConnectionState {
 }
 
 struct RTMPConnection {
-    socket: TcpStream,
     chunk_handler: ChunkHandler,
     message_router: MessageRouter,
     connection_state: Arc<Mutex<RTMPConnectionState>>,
 }
 
 impl RTMPConnection {
-    pub fn new(socket: TcpStream) -> Self {
+    pub fn new() -> Self {
         Self {
-            socket,
             chunk_handler: ChunkHandler::new(),
             message_router: MessageRouter::new(),
             connection_state: Arc::new(Mutex::new(RTMPConnectionState::default())),
         }
     }
 
-    async fn process(&mut self) -> io::Result<()> {
-        handshake(&mut self.socket).await?;
+    async fn process(&mut self, mut socket: TcpStream) -> io::Result<()> {
+        handshake(&mut socket).await?;
 
-        let (read_half, _write_half) = self.socket.split();
-
+        let (read_half, write_half) = socket.into_split();
         let (sender, send_queue) = mpsc::channel(100);
         tokio::spawn(
-            Self::send_pending_messages(send_queue, self.connection_state.clone())
+            Self::send_pending_messages(write_half, send_queue, self.connection_state.clone())
                 .in_current_span(),
         );
 
@@ -166,10 +161,13 @@ impl RTMPConnection {
     }
 
     #[instrument(skip_all)]
-    async fn send_pending_messages(
+    async fn send_pending_messages<T>(
+        mut _writer: T,
         mut send_queue: mpsc::Receiver<SendQueueMessage>,
         _connection_state: Arc<Mutex<RTMPConnectionState>>,
-    ) {
+    ) where
+        T: AsyncWriteExt + std::marker::Unpin,
+    {
         info!("initialized outbound message processor");
         while let Some((message_header, payload)) = send_queue.recv().await {
             // chunk payload and send chunks
