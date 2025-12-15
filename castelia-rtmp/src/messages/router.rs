@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use thiserror::Error;
 use tokio::sync::mpsc::Sender;
 use tracing::{trace, warn};
 
@@ -9,6 +10,9 @@ use crate::{
     netstream::NetStream,
     rtmp::SendQueueMessage,
 };
+
+#[derive(Error, Debug)]
+pub enum RouteError {}
 
 pub struct MessageRouter {
     net_connection: NetConnection,
@@ -32,7 +36,7 @@ impl MessageRouter {
         message: Message<'a>,
         message_stream_id: u32,
         send_queue: Sender<SendQueueMessage>,
-    ) {
+    ) -> Result<(), RouteError> {
         match message {
             Message::Protocol(protocol_control_message) => {
                 trace!("routing message to netconnection");
@@ -62,5 +66,6 @@ impl MessageRouter {
                 }
             }
         }
+        Ok(())
     }
 }

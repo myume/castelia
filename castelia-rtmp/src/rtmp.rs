@@ -93,9 +93,13 @@ impl RTMPConnection {
                 match Message::parse_message(&message_bytes, message_type_id) {
                     Ok(msg) => {
                         info!("message received:\n{:#?}", msg);
-                        self.message_router
+                        if let Err(e) = self
+                            .message_router
                             .route_message(msg, message_stream_id, sender.clone())
-                            .await;
+                            .await
+                        {
+                            error!("failed to handle message: {e}");
+                        }
                     }
                     Err(e) => error!("unable to parse message: {e}"),
                 };
