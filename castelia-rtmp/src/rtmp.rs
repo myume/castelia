@@ -52,15 +52,14 @@ impl RTMPSever {
     )
 )]
 async fn handle_rtmp_connection(socket: TcpStream, addr: SocketAddr) {
-    let mut connection = RTMPConnection::new();
-    if let Err(e) = connection.process(socket).await {
+    if let Err(e) = RTMPConnection::process(socket).await {
         error!("Failed to process rtmp connection: {e}");
     }
 }
 
 pub(crate) type SendQueueMessage = (MessageHeader, Bytes);
 
-pub struct RTMPConnectionState {
+pub(crate) struct RTMPConnectionState {
     pub max_chunk_size: u32,
     pub abort_queue: Vec<u32>,
     pub ack_seq_num: u32,
@@ -89,35 +88,26 @@ impl Default for RTMPConnectionState {
     }
 }
 
-struct RTMPConnection {
-    chunk_handler: ChunkHandler,
-    message_router: MessageRouter,
-    connection_state: Arc<Mutex<RTMPConnectionState>>,
-}
+struct RTMPConnection {}
 
 impl RTMPConnection {
-    pub fn new() -> Self {
-        Self {
-            chunk_handler: ChunkHandler::new(),
-            message_router: MessageRouter::new(),
-            connection_state: Arc::new(Mutex::new(RTMPConnectionState::default())),
-        }
-    }
+    async fn process(mut socket: TcpStream) -> io::Result<()> {
+        let mut chunk_handler = ChunkHandler::new();
+        let mut message_router = MessageRouter::new();
+        let connection_state = Arc::new(Mutex::new(RTMPConnectionState::default()));
 
-    async fn process(&mut self, mut socket: TcpStream) -> io::Result<()> {
         handshake(&mut socket).await?;
 
         let (read_half, write_half) = socket.into_split();
         let (sender, send_queue) = mpsc::channel(100);
         tokio::spawn(
-            Self::send_pending_messages(write_half, send_queue, self.connection_state.clone())
+            Self::send_pending_messages(write_half, send_queue, connection_state.clone())
                 .in_current_span(),
         );
 
         let mut reader = BufReader::new(read_half);
         loop {
-            let max_chunk_size = self
-                .connection_state
+            let max_chunk_size = connection_state
                 .lock()
                 .map_err(|e| io::Error::other(e.to_string()))?
                 .max_chunk_size as usize;
@@ -126,32 +116,30 @@ impl RTMPConnection {
             trace!("finished reading chunk");
 
             if let Some((message_bytes, message_type_id, message_stream_id)) =
-                self.chunk_handler.receive_chunk(chunk)
+                chunk_handler.receive_chunk(chunk)
             {
                 match Message::parse_message(&message_bytes, message_type_id) {
                     Ok(msg) => {
                         info!("message received:\n{:#?}", msg);
-                        if let Err(e) = self
-                            .message_router
+                        if let Err(e) = message_router
                             .route_message(
                                 msg,
                                 message_stream_id,
                                 sender.clone(),
-                                self.connection_state.clone(),
+                                connection_state.clone(),
                             )
                             .await
                         {
                             error!("failed to handle message: {e}");
                         }
 
-                        let abort_queue = &mut self
-                            .connection_state
+                        let abort_queue = &mut connection_state
                             .lock()
                             .map_err(|e| io::Error::other(e.to_string()))?
                             .abort_queue;
 
                         while let Some(chunk_to_abort) = abort_queue.pop() {
-                            self.chunk_handler.abort(chunk_to_abort);
+                            chunk_handler.abort(chunk_to_abort);
                         }
                     }
                     Err(e) => error!("unable to parse message: {e}"),
