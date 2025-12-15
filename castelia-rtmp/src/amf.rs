@@ -5,7 +5,7 @@
 use std::{
     collections::HashMap,
     io::{Cursor, Seek},
-    str,
+    str, vec,
 };
 
 use thiserror::Error;
@@ -29,6 +29,36 @@ pub enum AMF0Value<'a> {
     String(&'a str),
     Object(HashMap<&'a str, AMF0Value<'a>>),
     Null,
+}
+
+impl<'a> AMF0Value<'a> {
+    pub fn serialize(&self) -> Vec<u8> {
+        match *self {
+            AMF0Value::Number(num) => {
+                let mut bytes = vec![amf0_type_marker::NUMBER];
+                bytes.extend_from_slice(&num.to_be_bytes());
+                bytes
+            }
+            AMF0Value::Boolean(val) => vec![amf0_type_marker::BOOL, if val { 0x01 } else { 0x00 }],
+            AMF0Value::String(s) => {
+                let mut bytes = vec![amf0_type_marker::STRING];
+                bytes.extend_from_slice(&(s.len() as u16).to_be_bytes());
+                bytes.extend_from_slice(s.as_bytes());
+                bytes
+            }
+            AMF0Value::Object(ref object) => {
+                let mut bytes = vec![amf0_type_marker::OBJECT_START];
+                for (key, value) in object {
+                    bytes.extend_from_slice(&(key.len() as u16).to_be_bytes());
+                    bytes.extend_from_slice(key.as_bytes());
+                    bytes.extend_from_slice(&value.serialize());
+                }
+                bytes.extend_from_slice(&[0x00, 0x00, amf0_type_marker::OBJECT_END]);
+                bytes
+            }
+            AMF0Value::Null => vec![amf0_type_marker::NULL],
+        }
+    }
 }
 
 impl<'a> TryFrom<AMF0Value<'a>> for &'a str {
@@ -269,5 +299,49 @@ mod tests {
         let mut decoder = Decoder::new(&[amf0_type_marker::BOOL, 0x00]);
         assert_eq!(decoder.decode(), Ok(AMF0Value::Boolean(false)));
         assert_eq!(decoder.position(), 2);
+    }
+
+    #[test]
+    fn test_encode_decode_number() {
+        let val = AMF0Value::Number(rand::random());
+        let bytes = val.serialize();
+        let mut decoder = Decoder::new(&bytes);
+        assert_eq!(Ok(val), decoder.decode());
+    }
+
+    #[test]
+    fn test_encode_decode_null() {
+        let val = AMF0Value::Null;
+        let bytes = val.serialize();
+        let mut decoder = Decoder::new(&bytes);
+        assert_eq!(Ok(val), decoder.decode());
+    }
+
+    #[test]
+    fn test_encode_decode_bool() {
+        let val = AMF0Value::Boolean(false);
+        let bytes = val.serialize();
+        let mut decoder = Decoder::new(&bytes);
+        assert_eq!(Ok(val), decoder.decode());
+    }
+
+    #[test]
+    fn test_encode_decode_string() {
+        let val = AMF0Value::String("hello world");
+        let bytes = val.serialize();
+        let mut decoder = Decoder::new(&bytes);
+        assert_eq!(Ok(val), decoder.decode());
+    }
+
+    #[test]
+    fn test_encode_decode_object() {
+        let val = AMF0Value::Object(HashMap::from([
+            ("test", AMF0Value::Number(rand::random())),
+            ("hello", AMF0Value::String("world")),
+            ("test3", AMF0Value::Boolean(true)),
+        ]));
+        let bytes = val.serialize();
+        let mut decoder = Decoder::new(&bytes);
+        assert_eq!(Ok(val), decoder.decode());
     }
 }
