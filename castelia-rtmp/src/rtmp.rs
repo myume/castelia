@@ -58,13 +58,15 @@ async fn handle_rtmp_connection(socket: TcpStream, addr: SocketAddr) {
     }
 }
 
+pub(crate) const SERVER_CHUNK_SIZE: u32 = 4096;
 pub(crate) type SendQueueMessage = (MessageHeader, Bytes);
 
 pub(crate) struct RTMPConnectionState {
     pub max_chunk_size: u32,
     pub abort_queue: Vec<u32>,
     pub ack_seq_num: u32,
-    pub ack_window_size: u32,
+    pub peer_window_size: u32,
+    pub server_window_size: u32,
     pub peer_bandwidth: PeerBandwidth,
 }
 
@@ -74,7 +76,8 @@ impl RTMPConnectionState {
             max_chunk_size: 128,
             abort_queue: Vec::new(),
             ack_seq_num: 0,
-            ack_window_size: 0,
+            peer_window_size: 0,
+            server_window_size: 2_500_000,
             peer_bandwidth: PeerBandwidth {
                 limit_type: 0,
                 window_size: 0,

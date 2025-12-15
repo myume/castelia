@@ -7,11 +7,14 @@ use crate::{
     amf::AMF0Value,
     chunks::header::MessageHeader,
     messages::{
-        command::command_message_type, protocol_control::ProtocolControlMessage,
-        router::MessageStream, user_control::UserControlMessage,
+        Message,
+        command::command_message_type,
+        protocol_control::{PeerBandwidth, ProtocolControlMessage},
+        router::MessageStream,
+        user_control::UserControlMessage,
     },
     netconnection::{NetConnection, command::NetConnectionCommand},
-    rtmp::{RTMPConnectionState, SendQueueMessage},
+    rtmp::{RTMPConnectionState, SERVER_CHUNK_SIZE, SendQueueMessage},
 };
 
 impl NetConnection {
@@ -37,7 +40,7 @@ impl NetConnection {
                 connection_state.lock().unwrap().ack_seq_num = sequence_number;
             }
             ProtocolControlMessage::AckWindowSize(window_size) => {
-                connection_state.lock().unwrap().ack_window_size = window_size;
+                connection_state.lock().unwrap().peer_window_size = window_size;
             }
             ProtocolControlMessage::SetPeerBandwidth(peer_bandwidth) => {
                 connection_state.lock().unwrap().peer_bandwidth = peer_bandwidth;
@@ -56,7 +59,29 @@ impl NetConnection {
         &self,
         command: NetConnectionCommand<'a>,
         send_queue: Sender<SendQueueMessage>,
+        connection_state: Arc<Mutex<RTMPConnectionState>>,
     ) {
+        #[allow(clippy::unwrap_used)]
+        let size = connection_state.lock().unwrap().server_window_size;
+
+        let messages = [
+            Message::Protocol(ProtocolControlMessage::AckWindowSize(size)),
+            Message::Protocol(ProtocolControlMessage::SetPeerBandwidth(PeerBandwidth {
+                limit_type: 2,
+                window_size: size,
+            })),
+            Message::Protocol(ProtocolControlMessage::SetChunkSize(SERVER_CHUNK_SIZE)),
+        ];
+        for message in messages {
+            let serialized = message.serialize();
+            let header = MessageHeader::Type0 {
+                timestamp: 0,
+                message_length: serialized.len() as u32,
+                message_type_id: message.get_type_id(),
+                message_stream_id: 0,
+            };
+            send_queue.send((header, serialized)).await;
+        }
     }
 
     async fn handle_create_stream<'a>(
@@ -95,10 +120,12 @@ impl NetConnection {
         command: NetConnectionCommand<'a>,
         send_queue: Sender<SendQueueMessage>,
         streams: &mut MessageStream,
+        connection_state: Arc<Mutex<RTMPConnectionState>>,
     ) {
         match command.command_type {
             super::command::NetConnectionCommandType::Connect => {
-                self.handle_connect(command, send_queue).await;
+                self.handle_connect(command, send_queue, connection_state)
+                    .await;
             }
             super::command::NetConnectionCommandType::Call(procedure) => {
                 warn!("call command is unsupported, attempt to call procedure {procedure}");

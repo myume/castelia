@@ -99,6 +99,7 @@ impl MessageRouter {
                             command,
                             send_queue,
                             &mut self.message_streams,
+                            connection_state,
                         )
                         .await;
                 } else {

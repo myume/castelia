@@ -40,6 +40,28 @@ pub enum Message<'a> {
 }
 
 impl<'a> Message<'a> {
+    pub fn get_type_id(&self) -> u8 {
+        match self {
+            Message::Protocol(protocol_control_message) => match protocol_control_message {
+                ProtocolControlMessage::SetChunkSize(_) => protocol_control_type::SET_CHUNK_SIZE,
+                ProtocolControlMessage::Abort(_) => protocol_control_type::ABORT,
+                ProtocolControlMessage::Ack(_) => protocol_control_type::ACK,
+                ProtocolControlMessage::AckWindowSize(_) => protocol_control_type::WINDOW_ACK_SIZE,
+                ProtocolControlMessage::SetPeerBandwidth(_) => {
+                    protocol_control_type::SET_PEER_BANDWIDTH
+                }
+            },
+            Message::UserControl(_) => USER_CONTROL_TYPE,
+            Message::Command(command_message) => match command_message {
+                CommandMessage::NetConnection(_) => command_message_type::COMMAND_AMF0,
+                CommandMessage::NetStreamCommand { .. } => command_message_type::COMMAND_AMF0,
+                CommandMessage::Data(_) => command_message_type::DATA_AMF0,
+                CommandMessage::Audio(_) => command_message_type::AUDIO,
+                CommandMessage::Video(_) => command_message_type::VIDEO,
+            },
+        }
+    }
+
     pub fn parse_message(buf: &'a Bytes, message_type_id: u8) -> Result<Self, ParseMessageError> {
         Ok(match message_type_id {
             protocol_control_type::SET_CHUNK_SIZE
@@ -65,5 +87,13 @@ impl<'a> Message<'a> {
             }
             id => return Err(ParseMessageError::InvalidMessageTypeId(id)),
         })
+    }
+
+    pub fn serialize(&self) -> Bytes {
+        match self {
+            Message::Protocol(protocol_control_message) => protocol_control_message.serialize(),
+            Message::UserControl(user_control_message) => user_control_message.serialize(),
+            Message::Command(command_message) => command_message.serialize(),
+        }
     }
 }
