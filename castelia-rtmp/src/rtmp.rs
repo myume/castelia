@@ -21,14 +21,14 @@ use crate::{
 
 pub struct RTMPSever {
     listener: TcpListener,
-    streams: HashMap<String, tokio::sync::broadcast::Sender<Bytes>>,
+    broadcasts: HashMap<String, tokio::sync::broadcast::Sender<Bytes>>,
 }
 
 impl RTMPSever {
     pub fn new(listener: TcpListener) -> Self {
         Self {
             listener,
-            streams: HashMap::new(),
+            broadcasts: HashMap::new(),
         }
     }
 
