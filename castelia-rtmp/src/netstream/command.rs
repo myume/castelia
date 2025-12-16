@@ -3,7 +3,7 @@ use crate::{
     messages,
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum NetStreamCommand<'a> {
     Play {
         stream_name: &'a str,

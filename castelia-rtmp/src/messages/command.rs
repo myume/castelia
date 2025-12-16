@@ -42,7 +42,7 @@ pub enum ParseError {
     ),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum CommandMessage<'a> {
     NetConnection(NetConnectionCommand<'a>),
     NetStreamCommand {
@@ -213,5 +213,44 @@ impl<'a> CommandMessage<'a> {
             CommandMessage::Video(bytes) => return bytes.clone(),
         }
         bytes.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use crate::netconnection::command::NetConnectionCommandType;
+
+    use super::*;
+
+    #[test]
+    fn test_serialize_parse_netconnection_command() {
+        let expected = CommandMessage::NetConnection(NetConnectionCommand {
+            command_type: NetConnectionCommandType::Connect,
+            transaction_id: 1.0,
+            command_object: AMF0Value::Object(HashMap::from([("app", AMF0Value::String("live"))])),
+        });
+
+        let bytes = expected.serialize();
+        let actual = CommandMessage::parse_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parse_play_command() {
+        let expected = CommandMessage::NetStreamCommand {
+            command: NetStreamCommand::Play {
+                stream_name: "test",
+                start: 0.0,
+                duration: 10.0,
+                reset: false,
+            },
+            transaction_id: 1.0,
+            command_object: AMF0Value::Object(HashMap::from([("app", AMF0Value::String("live"))])),
+        };
+        let bytes = expected.serialize();
+        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
     }
 }

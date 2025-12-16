@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::amf;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum NetConnectionCommandType<'a> {
     Connect,
     Call(&'a str),
@@ -36,7 +36,7 @@ impl<'a> From<&'a str> for NetConnectionCommandType<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct NetConnectionCommand<'a> {
     pub command_type: NetConnectionCommandType<'a>,
     pub transaction_id: f64,
