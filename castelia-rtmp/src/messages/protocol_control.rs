@@ -28,13 +28,13 @@ impl From<ParseError> for ParseMessageError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct PeerBandwidth {
     pub limit_type: u8,
     pub window_size: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ProtocolControlMessage {
     SetChunkSize(u32),
     Abort(u32),
@@ -58,7 +58,7 @@ impl ProtocolControlMessage {
             protocol_control_type::WINDOW_ACK_SIZE => Self::AckWindowSize(data),
             protocol_control_type::SET_PEER_BANDWIDTH => Self::SetPeerBandwidth(PeerBandwidth {
                 window_size: data,
-                limit_type: *buf.get(5).ok_or(ParseError::InvalidMessageSize)?,
+                limit_type: *buf.get(4).ok_or(ParseError::InvalidMessageSize)?,
             }),
             _ => return Err(ParseError::InvalidMessageTypeId(*message_type_id)),
         })
@@ -85,5 +85,63 @@ impl ProtocolControlMessage {
             }
         }
         bytes.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_set_chunk_size() {
+        let expected = ProtocolControlMessage::SetChunkSize(rand::random());
+        let bytes = expected.serialize();
+        let actual =
+            ProtocolControlMessage::parse_message(&bytes, &protocol_control_type::SET_CHUNK_SIZE)
+                .unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_parse_abort() {
+        let expected = ProtocolControlMessage::Abort(rand::random());
+        let bytes = expected.serialize();
+        let actual =
+            ProtocolControlMessage::parse_message(&bytes, &protocol_control_type::ABORT).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_parse_ack() {
+        let expected = ProtocolControlMessage::Ack(rand::random());
+        let bytes = expected.serialize();
+        let actual =
+            ProtocolControlMessage::parse_message(&bytes, &protocol_control_type::ACK).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_parse_ack_window_size() {
+        let expected = ProtocolControlMessage::AckWindowSize(rand::random());
+        let bytes = expected.serialize();
+        let actual =
+            ProtocolControlMessage::parse_message(&bytes, &protocol_control_type::WINDOW_ACK_SIZE)
+                .unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_parse_peer_bandwidth() {
+        let expected = ProtocolControlMessage::SetPeerBandwidth(PeerBandwidth {
+            limit_type: rand::random(),
+            window_size: rand::random(),
+        });
+        let bytes = expected.serialize();
+        let actual = ProtocolControlMessage::parse_message(
+            &bytes,
+            &protocol_control_type::SET_PEER_BANDWIDTH,
+        )
+        .unwrap();
+        assert_eq!(expected, actual);
     }
 }
