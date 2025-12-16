@@ -145,7 +145,7 @@ impl<'a> NetStreamCommand<'a> {
             NetStreamCommand::ReceiveAudio { .. } => "receiveAudio",
             NetStreamCommand::ReceiveVideo { .. } => "receiveVideo",
             NetStreamCommand::Publish { .. } => "publish",
-            NetStreamCommand::Seek { .. } => "see",
+            NetStreamCommand::Seek { .. } => "seek",
             NetStreamCommand::Pause { .. } => "pause",
         }
     }

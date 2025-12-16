@@ -242,7 +242,7 @@ mod tests {
     fn test_serialize_parse_netconnection_command() {
         let expected = CommandMessage::NetConnection(NetConnectionCommand {
             command_type: NetConnectionCommandType::Connect,
-            transaction_id: 1.0,
+            transaction_id: rand::random(),
             command_object: AMF0Value::Object(HashMap::from([("app", AMF0Value::String("live"))])),
         });
 
@@ -256,12 +256,112 @@ mod tests {
         let expected = CommandMessage::NetStreamCommand {
             command: NetStreamCommand::Play {
                 stream_name: "test",
-                start: Some(0.0),
-                duration: Some(10.0),
-                reset: Some(false),
+                start: Some(rand::random()),
+                duration: Some(rand::random()),
+                reset: Some(rand::random()),
             },
-            transaction_id: 1.0,
-            command_object: AMF0Value::Object(HashMap::from([("app", AMF0Value::String("live"))])),
+            transaction_id: rand::random(),
+            command_object: AMF0Value::Null,
+        };
+        let bytes = expected.serialize();
+        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parse_play2_command() {
+        let expected = CommandMessage::NetStreamCommand {
+            command: NetStreamCommand::Play2 {
+                parameters: AMF0Value::Object(HashMap::from([("test", AMF0Value::String("test"))])),
+            },
+            transaction_id: rand::random(),
+            command_object: AMF0Value::Null,
+        };
+        let bytes = expected.serialize();
+        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parse_delete_stream_command() {
+        let expected = CommandMessage::NetStreamCommand {
+            command: NetStreamCommand::DeleteStream {
+                stream_id: rand::random(),
+            },
+            transaction_id: 0.0,
+            command_object: AMF0Value::Null,
+        };
+        let bytes = expected.serialize();
+        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parse_receive_audio_command() {
+        let expected = CommandMessage::NetStreamCommand {
+            command: NetStreamCommand::ReceiveAudio {
+                should_receive: rand::random(),
+            },
+            transaction_id: rand::random(),
+            command_object: AMF0Value::Null,
+        };
+        let bytes = expected.serialize();
+        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parse_receive_video_command() {
+        let expected = CommandMessage::NetStreamCommand {
+            command: NetStreamCommand::ReceiveVideo {
+                should_receive: rand::random(),
+            },
+            transaction_id: rand::random(),
+            command_object: AMF0Value::Null,
+        };
+        let bytes = expected.serialize();
+        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parse_publish_command() {
+        let expected = CommandMessage::NetStreamCommand {
+            command: NetStreamCommand::Publish {
+                publishing_name: "stream_key",
+                publishing_type: "live",
+            },
+            transaction_id: rand::random(),
+            command_object: AMF0Value::Null,
+        };
+        let bytes = expected.serialize();
+        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parse_seek_command() {
+        let expected = CommandMessage::NetStreamCommand {
+            command: NetStreamCommand::Seek {
+                milliseconds: rand::random(),
+            },
+            transaction_id: rand::random(),
+            command_object: AMF0Value::Null,
+        };
+        let bytes = expected.serialize();
+        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parse_pause_command() {
+        let expected = CommandMessage::NetStreamCommand {
+            command: NetStreamCommand::Pause {
+                is_paused: rand::random(),
+                milliseconds: rand::random(),
+            },
+            transaction_id: 0.0,
+            command_object: AMF0Value::Null,
         };
         let bytes = expected.serialize();
         let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
