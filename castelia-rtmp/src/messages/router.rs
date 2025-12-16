@@ -43,7 +43,9 @@ impl MessageStream {
         // the hashmap which increments the stream id. This will be an issue if there's enough
         // streams to overflow a u32. We're going to assume that it's highly unlikely and dumb if
         // it happens.
-        let message_stream_id = self.message_streams.len() as u32;
+        //
+        // + 1 to skip message stream 0 (control stream)
+        let message_stream_id = self.message_streams.len() as u32 + 1;
         self.message_streams
             .insert(message_stream_id, NetStream::new());
         message_stream_id

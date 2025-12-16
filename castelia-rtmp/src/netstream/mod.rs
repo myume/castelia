@@ -1,6 +1,7 @@
 pub mod command;
 pub mod handler;
 
+#[derive(Debug)]
 pub struct NetStream {}
 
 impl NetStream {
