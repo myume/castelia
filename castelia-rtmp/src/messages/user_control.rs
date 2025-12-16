@@ -1,3 +1,4 @@
+use bytes::{BufMut, Bytes, BytesMut};
 use thiserror::Error;
 
 pub const USER_CONTROL_TYPE: u8 = 4;
@@ -47,7 +48,7 @@ impl UserControlMessage {
             3 => Self::SetBufferLength {
                 message_stream_id: data,
                 buffer_size_in_millis: u32::from_be_bytes(
-                    buf.get(2..6)
+                    buf.get(6..10)
                         .ok_or(ParseError::InvalidMessageSize)?
                         .try_into()
                         .map_err(|_| ParseError::InvalidMessageSize)?,
@@ -58,5 +59,44 @@ impl UserControlMessage {
             6 => Self::PingRepsonse(data),
             _ => return Err(ParseError::InvalidEventType(event_type)),
         })
+    }
+
+    pub fn serialize(&self) -> Bytes {
+        let mut bytes = BytesMut::new();
+        match self {
+            UserControlMessage::StreamBegin(data) => {
+                bytes.put_u8(0);
+                bytes.extend_from_slice(&data.to_be_bytes());
+            }
+            UserControlMessage::StreamEOF(data) => {
+                bytes.put_u8(1);
+                bytes.extend_from_slice(&data.to_be_bytes());
+            }
+            UserControlMessage::StreamDry(data) => {
+                bytes.put_u8(2);
+                bytes.extend_from_slice(&data.to_be_bytes());
+            }
+            UserControlMessage::SetBufferLength {
+                message_stream_id,
+                buffer_size_in_millis,
+            } => {
+                bytes.extend_from_slice(&message_stream_id.to_be_bytes());
+                bytes.extend_from_slice(&buffer_size_in_millis.to_be_bytes());
+            }
+            UserControlMessage::StreamIsRecord(data) => {
+                bytes.put_u8(4);
+                bytes.extend_from_slice(&data.to_be_bytes());
+            }
+            UserControlMessage::PingRequest(data) => {
+                bytes.put_u8(5);
+                bytes.extend_from_slice(&data.to_be_bytes());
+            }
+            UserControlMessage::PingRepsonse(data) => {
+                bytes.put_u8(6);
+                bytes.extend_from_slice(&data.to_be_bytes());
+            }
+        }
+
+        bytes.into()
     }
 }
