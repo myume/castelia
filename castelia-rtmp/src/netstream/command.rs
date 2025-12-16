@@ -153,16 +153,20 @@ impl<'a> NetStreamCommand<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use crate::amf::AMF0Value;
 
     use super::*;
 
     #[test]
     fn test_parse_play() {
+        let start = AMF0Value::Number(rand::random());
+        let duration = AMF0Value::Number(rand::random());
         let buf = [
             AMF0Value::String("test").serialize(),
-            AMF0Value::Number(1.0).serialize(),
-            AMF0Value::Number(11.0).serialize(),
+            start.serialize(),
+            duration.serialize(),
             AMF0Value::Boolean(true).serialize(),
         ]
         .concat();
@@ -171,9 +175,119 @@ mod tests {
             actual,
             NetStreamCommand::Play {
                 stream_name: "test",
-                start: Some(1.0),
-                duration: Some(11.0),
+                start: start.try_into().unwrap(),
+                duration: duration.try_into().unwrap(),
                 reset: Some(true)
+            }
+        )
+    }
+
+    #[test]
+    fn test_parse_play2() {
+        let obj = AMF0Value::Object(HashMap::from([
+            ("stream_name", AMF0Value::String("test")),
+            ("start", AMF0Value::Number(rand::random())),
+        ]));
+        let bytes = obj.serialize();
+        let actual = NetStreamCommand::parse("play2", &bytes).unwrap();
+        assert_eq!(actual, NetStreamCommand::Play2 { parameters: obj })
+    }
+
+    #[test]
+    fn test_parse_delete_stream() {
+        let expected = rand::random();
+        let val = AMF0Value::Number(expected);
+        let bytes = val.serialize();
+        let actual = NetStreamCommand::parse("deleteStream", &bytes).unwrap();
+        assert_eq!(
+            actual,
+            NetStreamCommand::DeleteStream {
+                stream_id: expected as u32
+            }
+        )
+    }
+
+    #[test]
+    fn test_parse_close_stream() {
+        let expected = rand::random();
+        let val = AMF0Value::Number(expected);
+        let bytes = val.serialize();
+        let actual = NetStreamCommand::parse("closeStream", &bytes).unwrap();
+        assert_eq!(
+            actual,
+            NetStreamCommand::CloseStream {
+                stream_id: expected as u32
+            }
+        )
+    }
+
+    #[test]
+    fn test_parse_receive_audio() {
+        let expected = rand::random();
+        let val = AMF0Value::Boolean(expected);
+        let bytes = val.serialize();
+        let actual = NetStreamCommand::parse("receiveAudio", &bytes).unwrap();
+        assert_eq!(
+            actual,
+            NetStreamCommand::ReceiveAudio {
+                should_receive: expected
+            }
+        )
+    }
+
+    #[test]
+    fn test_parse_receive_video() {
+        let expected = rand::random();
+        let val = AMF0Value::Boolean(expected);
+        let bytes = val.serialize();
+        let actual = NetStreamCommand::parse("receiveVideo", &bytes).unwrap();
+        assert_eq!(
+            actual,
+            NetStreamCommand::ReceiveVideo {
+                should_receive: expected
+            }
+        )
+    }
+
+    #[test]
+    fn test_parse_publish() {
+        let publishing_name = AMF0Value::String("stream_key");
+        let publishing_type = AMF0Value::String("live");
+        let bytes = [publishing_name.serialize(), publishing_type.serialize()].concat();
+        let actual = NetStreamCommand::parse("publish", &bytes).unwrap();
+        assert_eq!(
+            actual,
+            NetStreamCommand::Publish {
+                publishing_name: publishing_name.try_into().unwrap(),
+                publishing_type: publishing_type.try_into().unwrap()
+            }
+        )
+    }
+
+    #[test]
+    fn test_parse_seek() {
+        let val = AMF0Value::Number(rand::random());
+        let bytes = val.serialize();
+        let actual = NetStreamCommand::parse("seek", &bytes).unwrap();
+        assert_eq!(
+            actual,
+            NetStreamCommand::Seek {
+                milliseconds: val.try_into().unwrap()
+            }
+        )
+    }
+
+    #[test]
+    fn test_parse_pause() {
+        let is_paused = AMF0Value::Boolean(rand::random());
+        let milliseconds = AMF0Value::Number(rand::random());
+        let bytes = [is_paused.serialize(), milliseconds.serialize()].concat();
+        let actual = NetStreamCommand::parse("pause", &bytes).unwrap();
+        assert_eq!(
+            actual,
+            NetStreamCommand::Pause {
+                is_paused: is_paused.try_into().unwrap(),
+                milliseconds: milliseconds.try_into().unwrap()
             }
         )
     }
