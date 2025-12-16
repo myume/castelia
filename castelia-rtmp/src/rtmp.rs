@@ -164,7 +164,7 @@ impl RTMPConnection {
 
     #[instrument(skip_all)]
     async fn send_pending_messages<T>(
-        mut _writer: T,
+        mut writer: T,
         mut send_queue: mpsc::Receiver<SendQueueMessage>,
         _connection_state: Arc<Mutex<RTMPConnectionState>>,
     ) where
@@ -173,7 +173,12 @@ impl RTMPConnection {
         info!("initialized outbound message processor");
         while let Some((message_header, payload)) = send_queue.recv().await {
             // chunk payload and send chunks
-            let _chunks = Chunk::into_chunks(message_header, payload, SERVER_CHUNK_SIZE);
+            let chunks = Chunk::into_chunks(message_header, payload, SERVER_CHUNK_SIZE);
+            for chunk in chunks {
+                if let Err(e) = writer.write_buf(&mut chunk.serialize()).await {
+                    error!("Failed to send message: {e}");
+                }
+            }
         }
     }
 }

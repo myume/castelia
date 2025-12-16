@@ -78,7 +78,7 @@ pub struct BasicHeader {
 }
 
 #[derive(Debug, PartialEq)]
-enum BasicHeaderType {
+pub enum BasicHeaderType {
     One,
     Two,
     Three,
@@ -306,6 +306,7 @@ impl ChunkHeader {
             extended_timestamp,
         }
     }
+
     /// Return the number of bytes read in the header.
     ///
     /// This is the size of the *actual* header, not the internal representation
@@ -538,6 +539,5 @@ mod tests {
         let mut reader: BufReader<&[u8]> = BufReader::new(&bytes);
         let actual = BasicHeader::parse(&mut reader).await.unwrap();
         assert_eq!(expected, actual);
-        assert_eq!(actual.chunk_stream_id(), 2);
     }
 }

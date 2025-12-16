@@ -1,6 +1,6 @@
 use std::{io, time::Duration};
 
-use bytes::{Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use thiserror::Error;
 use tokio::{
     io::{AsyncReadExt, BufReader},
@@ -129,6 +129,13 @@ impl Chunk {
         }
 
         chunks
+    }
+
+    pub fn serialize(&self) -> Bytes {
+        let mut bytes = BytesMut::new();
+        bytes.put(self.header.serialize());
+        bytes.put(self.payload.clone());
+        bytes.into()
     }
 }
 
