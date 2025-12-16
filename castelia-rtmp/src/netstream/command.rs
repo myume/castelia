@@ -7,9 +7,9 @@ use crate::{
 pub enum NetStreamCommand<'a> {
     Play {
         stream_name: &'a str,
-        start: f64,
-        duration: f64,
-        reset: bool,
+        start: Option<f64>,
+        duration: Option<f64>,
+        reset: Option<bool>,
     },
     Play2 {
         parameters: AMF0Value<'a>,
@@ -148,5 +148,33 @@ impl<'a> NetStreamCommand<'a> {
             NetStreamCommand::Seek { .. } => "see",
             NetStreamCommand::Pause { .. } => "pause",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::amf::AMF0Value;
+
+    use super::*;
+
+    #[test]
+    fn test_parse_play() {
+        let buf = [
+            AMF0Value::String("test").serialize(),
+            AMF0Value::Number(1.0).serialize(),
+            AMF0Value::Number(11.0).serialize(),
+            AMF0Value::Boolean(true).serialize(),
+        ]
+        .concat();
+        let actual = NetStreamCommand::parse("play", &buf).unwrap();
+        assert_eq!(
+            actual,
+            NetStreamCommand::Play {
+                stream_name: "test",
+                start: Some(1.0),
+                duration: Some(11.0),
+                reset: Some(true)
+            }
+        )
     }
 }

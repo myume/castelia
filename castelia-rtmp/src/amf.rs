@@ -74,6 +74,34 @@ impl<'a> TryFrom<AMF0Value<'a>> for &'a str {
     }
 }
 
+impl<'a> TryFrom<AMF0Value<'a>> for Option<bool> {
+    type Error = CastError;
+
+    fn try_from(value: AMF0Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            AMF0Value::Boolean(val) => Ok(Some(val)),
+            AMF0Value::Null => Ok(None),
+            found => Err(CastError::TypeMismatch(format!(
+                "Expected number, found {found:?}"
+            ))),
+        }
+    }
+}
+
+impl<'a> TryFrom<AMF0Value<'a>> for Option<f64> {
+    type Error = CastError;
+
+    fn try_from(value: AMF0Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            AMF0Value::Number(num) => Ok(Some(num)),
+            AMF0Value::Null => Ok(None),
+            found => Err(CastError::TypeMismatch(format!(
+                "Expected number, found {found:?}"
+            ))),
+        }
+    }
+}
+
 impl<'a> TryFrom<AMF0Value<'a>> for f64 {
     type Error = CastError;
 
@@ -81,7 +109,7 @@ impl<'a> TryFrom<AMF0Value<'a>> for f64 {
         match value {
             AMF0Value::Number(num) => Ok(num),
             found => Err(CastError::TypeMismatch(format!(
-                "Expected string, found {found:?}"
+                "Expected number, found {found:?}"
             ))),
         }
     }
@@ -94,7 +122,7 @@ impl<'a> TryFrom<AMF0Value<'a>> for bool {
         match value {
             AMF0Value::Boolean(b) => Ok(b),
             found => Err(CastError::TypeMismatch(format!(
-                "Expected string, found {found:?}"
+                "Expected bool, found {found:?}"
             ))),
         }
     }
@@ -221,6 +249,9 @@ impl<'a> Decoder<'a> {
             let value = self.decode()?;
             obj.insert(key, value);
         }
+        self.cursor
+            .seek_relative(3)
+            .map_err(|_| DecodeError::UnexpectedEOF)?;
 
         Ok(AMF0Value::Object(obj))
     }
@@ -307,6 +338,7 @@ mod tests {
         let bytes = val.serialize();
         let mut decoder = Decoder::new(&bytes);
         assert_eq!(Ok(val), decoder.decode());
+        assert_eq!(decoder.position(), bytes.len().try_into().unwrap());
     }
 
     #[test]
@@ -315,6 +347,7 @@ mod tests {
         let bytes = val.serialize();
         let mut decoder = Decoder::new(&bytes);
         assert_eq!(Ok(val), decoder.decode());
+        assert_eq!(decoder.position(), bytes.len().try_into().unwrap());
     }
 
     #[test]
@@ -323,6 +356,7 @@ mod tests {
         let bytes = val.serialize();
         let mut decoder = Decoder::new(&bytes);
         assert_eq!(Ok(val), decoder.decode());
+        assert_eq!(decoder.position(), bytes.len().try_into().unwrap());
     }
 
     #[test]
@@ -331,6 +365,7 @@ mod tests {
         let bytes = val.serialize();
         let mut decoder = Decoder::new(&bytes);
         assert_eq!(Ok(val), decoder.decode());
+        assert_eq!(decoder.position(), bytes.len().try_into().unwrap());
     }
 
     #[test]
@@ -343,5 +378,6 @@ mod tests {
         let bytes = val.serialize();
         let mut decoder = Decoder::new(&bytes);
         assert_eq!(Ok(val), decoder.decode());
+        assert_eq!(decoder.position(), bytes.len().try_into().unwrap());
     }
 }

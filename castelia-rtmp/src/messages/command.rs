@@ -106,7 +106,6 @@ impl<'a> CommandMessage<'a> {
         let mut decoder = amf::Decoder::new(buf);
         let (command_type, transaction_id, command_object) =
             CommandMessage::parse_base_command(&mut decoder)?;
-
         let command = NetStreamCommand::parse(command_type, decoder.get_buf()?)?;
 
         Ok(CommandMessage::NetStreamCommand {
@@ -166,9 +165,24 @@ impl<'a> CommandMessage<'a> {
                         reset,
                     } => {
                         bytes.extend_from_slice(&AMF0Value::String(stream_name).serialize());
-                        bytes.extend_from_slice(&AMF0Value::Number(*start).serialize());
-                        bytes.extend_from_slice(&AMF0Value::Number(*duration).serialize());
-                        bytes.extend_from_slice(&AMF0Value::Boolean(*reset).serialize());
+                        bytes.extend_from_slice(
+                            &start
+                                .map(AMF0Value::Number)
+                                .unwrap_or(AMF0Value::Null)
+                                .serialize(),
+                        );
+                        bytes.extend_from_slice(
+                            &duration
+                                .map(AMF0Value::Number)
+                                .unwrap_or(AMF0Value::Null)
+                                .serialize(),
+                        );
+                        bytes.extend_from_slice(
+                            &reset
+                                .map(AMF0Value::Boolean)
+                                .unwrap_or(AMF0Value::Null)
+                                .serialize(),
+                        );
                     }
                     NetStreamCommand::Play2 { parameters } => {
                         bytes.extend_from_slice(&parameters.serialize());
@@ -242,9 +256,9 @@ mod tests {
         let expected = CommandMessage::NetStreamCommand {
             command: NetStreamCommand::Play {
                 stream_name: "test",
-                start: 0.0,
-                duration: 10.0,
-                reset: false,
+                start: Some(0.0),
+                duration: Some(10.0),
+                reset: Some(false),
             },
             transaction_id: 1.0,
             command_object: AMF0Value::Object(HashMap::from([("app", AMF0Value::String("live"))])),
