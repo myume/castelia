@@ -1,3 +1,4 @@
+use bytes::{BufMut, Bytes, BytesMut};
 use thiserror::Error;
 
 use crate::messages::ParseMessageError;
@@ -61,5 +62,28 @@ impl ProtocolControlMessage {
             }),
             _ => return Err(ParseError::InvalidMessageTypeId(*message_type_id)),
         })
+    }
+
+    pub fn serialize(&self) -> Bytes {
+        let mut bytes = BytesMut::new();
+        match self {
+            ProtocolControlMessage::SetChunkSize(data) => {
+                bytes.extend_from_slice(&data.to_be_bytes());
+            }
+            ProtocolControlMessage::Abort(data) => {
+                bytes.extend_from_slice(&data.to_be_bytes());
+            }
+            ProtocolControlMessage::Ack(data) => {
+                bytes.extend_from_slice(&data.to_be_bytes());
+            }
+            ProtocolControlMessage::AckWindowSize(size) => {
+                bytes.extend_from_slice(&size.to_be_bytes());
+            }
+            ProtocolControlMessage::SetPeerBandwidth(peer_bandwidth) => {
+                bytes.extend_from_slice(&peer_bandwidth.window_size.to_be_bytes());
+                bytes.put_u8(peer_bandwidth.limit_type);
+            }
+        }
+        bytes.into()
     }
 }
