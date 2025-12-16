@@ -22,6 +22,15 @@ impl ChunkHandler {
     pub fn receive_chunk(&mut self, chunk: Chunk) -> Option<(Bytes, u8, u32)> {
         let cs_id = chunk.header.chunk_stream_id();
         if let Some(partial) = self.chunk_streams.get_mut(&cs_id) {
+            if let Some(message_length) = chunk.header.get_message_length() {
+                partial.length = message_length;
+            }
+            if let Some(message_type) = chunk.header.get_message_type() {
+                partial.message_type = message_type;
+            }
+            if let Some(message_stream_id) = chunk.header.get_message_stream_id() {
+                partial.message_stream_id = message_stream_id;
+            }
             partial.bytes.extend(chunk.payload);
         } else if let Some(length) = chunk.header.get_message_length()
             && let Some(message_type) = chunk.header.get_message_type()
@@ -41,15 +50,16 @@ impl ChunkHandler {
             return None;
         }
 
-        if let Some(partial) = self.chunk_streams.get(&cs_id)
+        if let Some(partial) = self.chunk_streams.get_mut(&cs_id)
             && partial.length as usize == partial.bytes.len()
-            && let Some(partial) = self.chunk_streams.remove(&cs_id)
         {
-            Some((
-                partial.bytes.into(),
+            let message = (
+                partial.bytes.clone().into(),
                 partial.message_type,
                 partial.message_stream_id,
-            ))
+            );
+            partial.bytes.clear();
+            Some(message)
         } else {
             None
         }
