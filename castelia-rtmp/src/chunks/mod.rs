@@ -15,6 +15,8 @@ pub mod header;
 
 type CSId = u32;
 
+pub(crate) const SERVER_CHUNK_SIZE: u32 = 4096;
+
 pub struct Chunk {
     pub header: ChunkHeader,
     pub payload: Bytes,

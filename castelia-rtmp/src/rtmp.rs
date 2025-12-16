@@ -58,7 +58,6 @@ async fn handle_rtmp_connection(socket: TcpStream, addr: SocketAddr) {
     }
 }
 
-pub(crate) const SERVER_CHUNK_SIZE: u32 = 4096;
 pub(crate) type SendQueueMessage = ((MessageHeader, Option<u32>), Bytes);
 
 pub(crate) struct RTMPConnectionState {

@@ -6,7 +6,7 @@ use tracing::error;
 
 use crate::{
     amf::AMF0Value,
-    chunks::header::MessageHeader,
+    chunks::{SERVER_CHUNK_SIZE, header::MessageHeader},
     messages::{
         Message,
         command::command_message_type,
@@ -15,7 +15,7 @@ use crate::{
         user_control::UserControlMessage,
     },
     netconnection::{NetConnection, command::NetConnectionCommand},
-    rtmp::{RTMPConnectionState, SERVER_CHUNK_SIZE, SendQueueMessage},
+    rtmp::{RTMPConnectionState, SendQueueMessage},
 };
 
 #[derive(Error, Debug)]
