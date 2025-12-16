@@ -14,21 +14,21 @@ use tokio::{
 use tracing::{Instrument, debug, error, info, instrument, trace};
 
 use crate::{
-    chunks::{Chunk, chunk_handler::ChunkHandler, header::MessageHeader},
+    chunks::{Chunk, SERVER_CHUNK_SIZE, chunk_handler::ChunkHandler, header::FullMessageHeader},
     handshake::handshake,
     messages::{Message, protocol_control::PeerBandwidth, router::MessageRouter},
 };
 
 pub struct RTMPSever {
     listener: TcpListener,
-    broadcasts: HashMap<String, tokio::sync::broadcast::Sender<Bytes>>,
+    _broadcasts: HashMap<String, tokio::sync::broadcast::Sender<Bytes>>,
 }
 
 impl RTMPSever {
     pub fn new(listener: TcpListener) -> Self {
         Self {
             listener,
-            broadcasts: HashMap::new(),
+            _broadcasts: HashMap::new(),
         }
     }
 
@@ -58,7 +58,7 @@ async fn handle_rtmp_connection(socket: TcpStream, addr: SocketAddr) {
     }
 }
 
-pub(crate) type SendQueueMessage = ((MessageHeader, Option<u32>), Bytes);
+pub(crate) type SendQueueMessage = (FullMessageHeader, Bytes);
 
 pub(crate) struct RTMPConnectionState {
     pub max_chunk_size: u32,
@@ -173,6 +173,7 @@ impl RTMPConnection {
         info!("initialized outbound message processor");
         while let Some((message_header, payload)) = send_queue.recv().await {
             // chunk payload and send chunks
+            let _chunks = Chunk::into_chunks(message_header, payload, SERVER_CHUNK_SIZE);
         }
     }
 }

@@ -6,7 +6,10 @@ use tracing::error;
 
 use crate::{
     amf::AMF0Value,
-    chunks::{SERVER_CHUNK_SIZE, header::MessageHeader},
+    chunks::{
+        SERVER_CHUNK_SIZE,
+        header::{FullMessageHeader, MessageHeader},
+    },
     messages::{
         Message,
         command::command_message_type,
@@ -86,15 +89,13 @@ impl NetConnection {
         ];
         for message in messages {
             let serialized = message.serialize();
-            let header = (
-                MessageHeader::Type0 {
-                    timestamp: 0,
-                    message_length: serialized.len() as u32,
-                    message_type_id: message.get_type_id(),
-                    message_stream_id: 0,
-                },
-                None,
-            );
+            let header = FullMessageHeader {
+                timestamp: 0,
+                extended_timestamp: None,
+                message_length: serialized.len() as u32,
+                message_type_id: message.get_type_id(),
+                message_stream_id: 0,
+            };
             send_queue.send((header, serialized)).await?;
         }
 
@@ -118,15 +119,13 @@ impl NetConnection {
         .map(|val| val.serialize())
         .concat();
 
-        let header = (
-            MessageHeader::Type0 {
-                timestamp: 0,
-                message_length: response.len() as u32,
-                message_type_id: command_message_type::COMMAND_AMF0,
-                message_stream_id: *sender_stream_id,
-            },
-            None,
-        );
+        let header = FullMessageHeader {
+            timestamp: 0,
+            extended_timestamp: None,
+            message_length: response.len() as u32,
+            message_type_id: command_message_type::COMMAND_AMF0,
+            message_stream_id: *sender_stream_id,
+        };
 
         if let Err(e) = send_queue.send((header, response.into())).await {
             error!("Failed to send create stream response {e}");

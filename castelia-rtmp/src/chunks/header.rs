@@ -36,6 +36,14 @@ impl From<ParseChunkHeaderError> for io::Error {
     }
 }
 
+pub struct FullMessageHeader {
+    pub timestamp: u32,
+    pub extended_timestamp: Option<u32>,
+    pub message_length: u32,
+    pub message_type_id: u8,
+    pub message_stream_id: u32,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum MessageHeader {
     Type0 {
@@ -69,6 +77,14 @@ pub struct BasicHeader {
 }
 
 impl MessageHeader {
+    pub fn get_type(&self) -> u8 {
+        match self {
+            MessageHeader::Type0 { .. } => 0,
+            MessageHeader::Type1 { .. } => 1,
+            MessageHeader::Type2 { .. } => 2,
+            MessageHeader::Type3 => 3,
+        }
+    }
     pub fn get_message_stream_id(&self) -> Option<u32> {
         match *self {
             MessageHeader::Type0 {
@@ -78,7 +94,7 @@ impl MessageHeader {
         }
     }
 
-    pub fn get_message_type(&self) -> Option<u8> {
+    pub fn get_message_type_id(&self) -> Option<u8> {
         match *self {
             MessageHeader::Type0 {
                 message_type_id, ..
@@ -228,9 +244,32 @@ impl BasicHeader {
             header_type,
         })
     }
+
+    pub fn new(fmt: u8, csid: u32) -> Self {
+        Self {
+            chunk_type: fmt,
+            chunk_stream_id: csid,
+            header_type: match csid {
+                64..320 => 0,
+                320..65599 => 1,
+                _ => csid as u8,
+            },
+        }
+    }
 }
 
 impl ChunkHeader {
+    pub fn new(
+        basic_header: BasicHeader,
+        message_header: MessageHeader,
+        extended_timestamp: Option<u32>,
+    ) -> Self {
+        Self {
+            basic_header,
+            message_header,
+            extended_timestamp,
+        }
+    }
     /// Return the number of bytes read in the header.
     ///
     /// This is the size of the *actual* header, not the internal representation
@@ -245,7 +284,7 @@ impl ChunkHeader {
     }
 
     pub fn get_message_type(&self) -> Option<u8> {
-        self.message_header.get_message_type()
+        self.message_header.get_message_type_id()
     }
 
     pub fn chunk_stream_id(&self) -> CSId {
