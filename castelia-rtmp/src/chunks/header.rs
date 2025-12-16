@@ -85,6 +85,37 @@ pub enum BasicHeaderType {
 }
 
 impl MessageHeader {
+    pub fn serialize(&self) -> Bytes {
+        let mut bytes = BytesMut::new();
+        match self {
+            MessageHeader::Type0 {
+                timestamp,
+                message_length,
+                message_type_id,
+                message_stream_id,
+            } => {
+                bytes.put(&timestamp.to_be_bytes()[1..]);
+                bytes.put(&message_length.to_be_bytes()[1..]);
+                bytes.put_u8(*message_type_id);
+                bytes.put_u32_le(*message_stream_id);
+            }
+            MessageHeader::Type1 {
+                timestamp_delta,
+                message_length,
+                message_type_id,
+            } => {
+                bytes.put(&timestamp_delta.to_be_bytes()[1..]);
+                bytes.put(&message_length.to_be_bytes()[1..]);
+                bytes.put_u8(*message_type_id);
+            }
+            MessageHeader::Type2 { timestamp_delta } => {
+                bytes.put(&timestamp_delta.to_be_bytes()[1..]);
+            }
+            MessageHeader::Type3 => {}
+        }
+        bytes.into()
+    }
+
     pub fn get_type(&self) -> u8 {
         match self {
             MessageHeader::Type0 { .. } => 0,
@@ -178,13 +209,13 @@ impl MessageHeader {
 
     async fn parse<T>(
         reader: &mut BufReader<T>,
-        chunk_type: &u8,
+        header_type: &u8,
     ) -> Result<Self, ParseChunkHeaderError>
     where
         T: AsyncReadExt + std::marker::Unpin,
     {
         trace!("parsing chunk message header");
-        match *chunk_type {
+        match *header_type {
             0 => Self::parse_type0(reader).await,
             1 => Self::parse_type1(reader).await,
             2 => Self::parse_type2(reader).await,
@@ -365,8 +396,10 @@ impl ChunkHeader {
     pub fn serialize(&self) -> Bytes {
         let mut bytes = BytesMut::new();
         bytes.put(self.basic_header.serialize());
-        // self.message_header.serialize();
-        // self.extended_timestamp.serialize();
+        bytes.put(self.message_header.serialize());
+        if let Some(extended_timestamp) = self.extended_timestamp {
+            bytes.put_u32(extended_timestamp);
+        }
         bytes.into()
     }
 }
@@ -538,6 +571,61 @@ mod tests {
         let bytes = expected.serialize();
         let mut reader: BufReader<&[u8]> = BufReader::new(&bytes);
         let actual = BasicHeader::parse(&mut reader).await.unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
+    async fn test_serialize_and_parse_message_header_type0() {
+        let expected = MessageHeader::Type0 {
+            timestamp: rand::random::<u16>().into(),
+            message_length: rand::random::<u16>().into(),
+            message_type_id: rand::random(),
+            message_stream_id: rand::random(),
+        };
+        let bytes = expected.serialize();
+        let mut reader: BufReader<&[u8]> = BufReader::new(&bytes);
+        let actual = MessageHeader::parse(&mut reader, &expected.get_type())
+            .await
+            .unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
+    async fn test_serialize_and_parse_message_header_type1() {
+        let expected = MessageHeader::Type1 {
+            timestamp_delta: rand::random::<u16>().into(),
+            message_length: rand::random::<u16>().into(),
+            message_type_id: rand::random(),
+        };
+        let bytes = expected.serialize();
+        let mut reader: BufReader<&[u8]> = BufReader::new(&bytes);
+        let actual = MessageHeader::parse(&mut reader, &expected.get_type())
+            .await
+            .unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
+    async fn test_serialize_and_parse_message_header_type2() {
+        let expected = MessageHeader::Type2 {
+            timestamp_delta: rand::random::<u16>().into(),
+        };
+        let bytes = expected.serialize();
+        let mut reader: BufReader<&[u8]> = BufReader::new(&bytes);
+        let actual = MessageHeader::parse(&mut reader, &expected.get_type())
+            .await
+            .unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
+    async fn test_serialize_and_parse_message_header_type3() {
+        let expected = MessageHeader::Type3;
+        let bytes = expected.serialize();
+        let mut reader: BufReader<&[u8]> = BufReader::new(&bytes);
+        let actual = MessageHeader::parse(&mut reader, &expected.get_type())
+            .await
+            .unwrap();
         assert_eq!(expected, actual);
     }
 }
