@@ -1,5 +1,6 @@
 use std::io;
 
+use bytes::{BufMut, Bytes, BytesMut};
 use thiserror::Error;
 use tokio::io::{AsyncReadExt, BufReader};
 use tracing::trace;
@@ -73,7 +74,14 @@ pub enum MessageHeader {
 pub struct BasicHeader {
     chunk_type: u8,
     chunk_stream_id: CSId,
-    header_type: u8,
+    header_type: BasicHeaderType,
+}
+
+#[derive(Debug, PartialEq)]
+enum BasicHeaderType {
+    One,
+    Two,
+    Three,
 }
 
 impl MessageHeader {
@@ -199,11 +207,31 @@ where
 }
 
 impl BasicHeader {
+    pub fn serialize(&self) -> Bytes {
+        let mut bytes = BytesMut::new();
+        match self.header_type {
+            BasicHeaderType::One => {
+                bytes.put_u8(self.chunk_type << 6 | (self.chunk_stream_id as u8 & 0x3F));
+            }
+            BasicHeaderType::Two => {
+                bytes.put_u8(self.chunk_type << 6);
+                bytes.put_u8((self.chunk_stream_id - 64) as u8);
+            }
+            BasicHeaderType::Three => {
+                bytes.put_u8(self.chunk_type << 6 | 0x01);
+                bytes.put_u8((self.chunk_stream_id >> 8) as u8);
+                bytes.put_u8((self.chunk_stream_id - 64) as u8);
+            }
+        }
+
+        bytes.into()
+    }
+
     pub fn bytes_read(&self) -> usize {
         match self.header_type {
-            0 => 2,
-            1 => 3,
-            _ => 1,
+            BasicHeaderType::One => 1,
+            BasicHeaderType::Two => 2,
+            BasicHeaderType::Three => 3,
         }
     }
     pub fn chunk_type(&self) -> u8 {
@@ -220,40 +248,48 @@ impl BasicHeader {
     {
         trace!("parsing chunk basic header");
         let byte1 = reader.read_u8().await?;
+        let mut bytes_read = 1;
 
         // bottom 6 bits is header type if 0 or 1 else it's the actual cs_id
-        let header_type = byte1 & 0x3F;
-        let chunk_stream_id = match header_type {
+        let chunk_stream_id = match byte1 & 0x3F {
             // 2 byte form
             0 => {
                 let byte2 = reader.read_u8().await?;
+                bytes_read += 1;
                 byte2 as u32 + 64
             }
             // 3 byte form
             1 => {
                 let byte2 = reader.read_u8().await?;
+                bytes_read += 1;
                 let byte3 = reader.read_u8().await?;
+                bytes_read += 1;
                 (((byte3 as u16) << 8) + (byte2 as u16 + 64)).into()
             }
-            _ => header_type.into(),
+            val => val.into(),
         };
 
         Ok(Self {
             chunk_type: byte1 >> 6,
             chunk_stream_id,
-            header_type,
+            header_type: match bytes_read {
+                1 => BasicHeaderType::One,
+                2 => BasicHeaderType::Two,
+                _ => BasicHeaderType::Three,
+            },
         })
     }
 
     pub fn new(fmt: u8, csid: u32) -> Self {
+        let header_type = match csid {
+            0..64 => BasicHeaderType::One,
+            64..320 => BasicHeaderType::Two,
+            _ => BasicHeaderType::Three,
+        };
         Self {
             chunk_type: fmt,
             chunk_stream_id: csid,
-            header_type: match csid {
-                64..320 => 0,
-                320..65599 => 1,
-                _ => csid as u8,
-            },
+            header_type,
         }
     }
 }
@@ -323,6 +359,14 @@ impl ChunkHeader {
             MessageHeader::Type2 { .. } => None,
             MessageHeader::Type3 => None,
         }
+    }
+
+    pub fn serialize(&self) -> Bytes {
+        let mut bytes = BytesMut::new();
+        bytes.put(self.basic_header.serialize());
+        // self.message_header.serialize();
+        // self.extended_timestamp.serialize();
+        bytes.into()
     }
 }
 
@@ -485,5 +529,15 @@ mod tests {
             }
         );
         assert!(!header.has_extended_timestamp());
+    }
+
+    #[tokio::test]
+    async fn test_serialize_and_parse_basic_header() {
+        let expected = BasicHeader::new(0, 2);
+        let bytes = expected.serialize();
+        let mut reader: BufReader<&[u8]> = BufReader::new(&bytes);
+        let actual = BasicHeader::parse(&mut reader).await.unwrap();
+        assert_eq!(expected, actual);
+        assert_eq!(actual.chunk_stream_id(), 2);
     }
 }
