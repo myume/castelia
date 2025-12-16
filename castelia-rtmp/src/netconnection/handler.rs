@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use tokio::sync::mpsc::Sender;
-use tracing::{error, warn};
+use thiserror::Error;
+use tokio::sync::mpsc::{Sender, error::SendError};
+use tracing::error;
 
 use crate::{
     amf::AMF0Value,
@@ -16,6 +17,18 @@ use crate::{
     netconnection::{NetConnection, command::NetConnectionCommand},
     rtmp::{RTMPConnectionState, SERVER_CHUNK_SIZE, SendQueueMessage},
 };
+
+#[derive(Error, Debug)]
+pub enum HandleError {
+    #[error("Failure sending message to send queue")]
+    SendError(
+        #[source]
+        #[from]
+        SendError<SendQueueMessage>,
+    ),
+    #[error("Attempted to call unsupported command \"{0}\"")]
+    UnsupportedCommand(String),
+}
 
 impl NetConnection {
     #[allow(clippy::unwrap_used)]
@@ -55,12 +68,11 @@ impl NetConnection {
     ) {
     }
 
-    async fn handle_connect<'a>(
+    async fn handle_connect(
         &self,
-        command: NetConnectionCommand<'a>,
         send_queue: Sender<SendQueueMessage>,
         connection_state: Arc<Mutex<RTMPConnectionState>>,
-    ) {
+    ) -> Result<(), HandleError> {
         #[allow(clippy::unwrap_used)]
         let size = connection_state.lock().unwrap().server_window_size;
 
@@ -80,8 +92,10 @@ impl NetConnection {
                 message_type_id: message.get_type_id(),
                 message_stream_id: 0,
             };
-            send_queue.send((header, serialized)).await;
+            send_queue.send((header, serialized)).await?;
         }
+
+        Ok(())
     }
 
     async fn handle_create_stream<'a>(
@@ -90,7 +104,7 @@ impl NetConnection {
         command: NetConnectionCommand<'a>,
         streams: &mut MessageStream,
         send_queue: Sender<SendQueueMessage>,
-    ) {
+    ) -> Result<(), HandleError> {
         let created_stream_id = streams.create_stream();
         let response = [
             AMF0Value::String("_result"),
@@ -111,7 +125,9 @@ impl NetConnection {
         if let Err(e) = send_queue.send((header, response.into())).await {
             error!("Failed to send create stream response {e}");
             streams.delete_stream(&created_stream_id);
+            return Err(HandleError::SendError(e));
         };
+        Ok(())
     }
 
     pub async fn handle_command<'a>(
@@ -121,20 +137,20 @@ impl NetConnection {
         send_queue: Sender<SendQueueMessage>,
         streams: &mut MessageStream,
         connection_state: Arc<Mutex<RTMPConnectionState>>,
-    ) {
+    ) -> Result<(), HandleError> {
         match command.command_type {
             super::command::NetConnectionCommandType::Connect => {
-                self.handle_connect(command, send_queue, connection_state)
-                    .await;
+                self.handle_connect(send_queue, connection_state).await?;
             }
             super::command::NetConnectionCommandType::Call(procedure) => {
-                warn!("call command is unsupported, attempt to call procedure {procedure}");
+                return Err(HandleError::UnsupportedCommand(procedure.to_owned()));
             }
             super::command::NetConnectionCommandType::Close => todo!(),
             super::command::NetConnectionCommandType::CreateStream => {
                 self.handle_create_stream(sender_stream_id, command, streams, send_queue)
-                    .await;
+                    .await?;
             }
         }
+        Ok(())
     }
 }

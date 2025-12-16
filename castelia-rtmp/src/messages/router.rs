@@ -9,7 +9,7 @@ use tracing::trace;
 
 use crate::{
     messages::{Message, command::CommandMessage},
-    netconnection::NetConnection,
+    netconnection::{self, NetConnection},
     netstream::NetStream,
     rtmp::{RTMPConnectionState, SendQueueMessage},
 };
@@ -20,6 +20,12 @@ pub enum RouteError {
     MissingNetStream(u32),
     #[error("Netconnection commands must be issued on message stream 0, found {0}")]
     InvalidNetconnectionRoute(u32),
+    #[error("Failed to handle netconnection command")]
+    HandleNetconnectonError(
+        #[source]
+        #[from]
+        netconnection::handler::HandleError,
+    ),
 }
 
 #[derive(Default)]
@@ -101,7 +107,7 @@ impl MessageRouter {
                             &mut self.message_streams,
                             connection_state,
                         )
-                        .await;
+                        .await?;
                 } else {
                     trace!("routing message to netstream {message_stream_id}");
                     let Some(_stream) = self.message_streams.get(&message_stream_id) else {
