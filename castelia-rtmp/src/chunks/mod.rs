@@ -88,7 +88,7 @@ impl Chunk {
 
     /// Break the payload into chunks
     pub fn into_chunks(
-        full_header: FullMessageHeader,
+        full_header: &FullMessageHeader,
         mut payload: Bytes,
         chunk_size: u32,
     ) -> Vec<Chunk> {
@@ -190,7 +190,8 @@ mod tests {
                 payload: Bytes::from(payload[3 * SERVER_CHUNK_SIZE as usize..].to_vec()),
             },
         ];
-        let chunks = Chunk::into_chunks(full_header, Bytes::from_owner(payload), SERVER_CHUNK_SIZE);
+        let chunks =
+            Chunk::into_chunks(&full_header, Bytes::from_owner(payload), SERVER_CHUNK_SIZE);
 
         // asserting like this for easier debugging
         for (expected, actual) in zip(&expected, &chunks) {

@@ -37,6 +37,7 @@ impl From<ParseChunkHeaderError> for io::Error {
     }
 }
 
+#[derive(Debug)]
 pub struct FullMessageHeader {
     pub timestamp: u32,
     pub extended_timestamp: Option<u32>,

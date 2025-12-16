@@ -168,16 +168,15 @@ impl RTMPConnection {
         info!("initialized outbound message processor");
         while let Some((message_header, payload)) = send_queue.recv().await {
             // chunk payload and send chunks
-            trace!("chunking message");
-            let chunks = Chunk::into_chunks(message_header, payload, SERVER_CHUNK_SIZE);
+            let chunks = Chunk::into_chunks(&message_header, payload, SERVER_CHUNK_SIZE);
+            trace!("chunked payload into {} chunks", chunks.len());
             for chunk in chunks {
                 trace!("sending chunk:\n{:#?}", &chunk);
                 if let Err(e) = writer.write_buf(&mut chunk.serialize()).await {
                     error!("Failed to send message: {e}");
                 }
             }
-
-            info!("message sent");
+            debug!("sending message\n{:#?}", &message_header);
         }
     }
 }
