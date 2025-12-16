@@ -6,10 +6,7 @@ use tracing::error;
 
 use crate::{
     amf::AMF0Value,
-    chunks::{
-        SERVER_CHUNK_SIZE,
-        header::{FullMessageHeader, MessageHeader},
-    },
+    chunks::{SERVER_CHUNK_SIZE, header::FullMessageHeader},
     messages::{
         Message,
         command::command_message_type,
@@ -66,8 +63,8 @@ impl NetConnection {
 
     pub async fn handle_user_control_message(
         &mut self,
-        message: UserControlMessage,
-        send_queue: Sender<SendQueueMessage>,
+        _message: UserControlMessage,
+        _send_queue: Sender<SendQueueMessage>,
     ) {
     }
 
@@ -98,6 +95,27 @@ impl NetConnection {
             };
             send_queue.send((header, serialized)).await?;
         }
+
+        let response = [
+            AMF0Value::String("_result"),
+            AMF0Value::Number(1.0),
+            AMF0Value::Null,
+            AMF0Value::Null,
+        ]
+        .map(|val| val.serialize())
+        .concat();
+        send_queue
+            .send((
+                FullMessageHeader {
+                    timestamp: 0,
+                    extended_timestamp: None,
+                    message_length: response.len() as u32,
+                    message_type_id: command_message_type::COMMAND_AMF0,
+                    message_stream_id: 0,
+                },
+                response.into(),
+            ))
+            .await?;
 
         Ok(())
     }
