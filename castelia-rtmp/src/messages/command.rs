@@ -1,9 +1,11 @@
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use thiserror::Error;
 use tracing::warn;
 
 use crate::{
-    amf, netconnection::command::NetConnectionCommand, netstream::command::NetStreamCommand,
+    amf::{self, AMF0Value},
+    netconnection::command::NetConnectionCommand,
+    netstream::command::NetStreamCommand,
 };
 
 pub mod command_message_type {
@@ -132,5 +134,84 @@ impl<'a> CommandMessage<'a> {
             transaction_id,
             command_object,
         }))
+    }
+
+    pub fn serialize(&self) -> Bytes {
+        let mut bytes = BytesMut::new();
+        match self {
+            CommandMessage::NetConnection(net_connection_command) => {
+                bytes.extend_from_slice(
+                    &AMF0Value::String(&net_connection_command.command_type.to_string())
+                        .serialize(),
+                );
+                bytes.extend_from_slice(
+                    &AMF0Value::Number(net_connection_command.transaction_id).serialize(),
+                );
+                bytes.extend_from_slice(&net_connection_command.command_object.serialize());
+            }
+            CommandMessage::NetStreamCommand {
+                command,
+                transaction_id,
+                command_object,
+            } => {
+                bytes.extend_from_slice(&AMF0Value::String(command.name()).serialize());
+                bytes.extend_from_slice(&AMF0Value::Number(*transaction_id).serialize());
+                bytes.extend_from_slice(&command_object.serialize());
+
+                match command {
+                    NetStreamCommand::Play {
+                        stream_name,
+                        start,
+                        duration,
+                        reset,
+                    } => {
+                        bytes.extend_from_slice(&AMF0Value::String(stream_name).serialize());
+                        bytes.extend_from_slice(&AMF0Value::Number(*start).serialize());
+                        bytes.extend_from_slice(&AMF0Value::Number(*duration).serialize());
+                        bytes.extend_from_slice(&AMF0Value::Boolean(*reset).serialize());
+                    }
+                    NetStreamCommand::Play2 { parameters } => {
+                        bytes.extend_from_slice(&parameters.serialize());
+                    }
+                    NetStreamCommand::DeleteStream { stream_id } => {
+                        bytes.extend_from_slice(&AMF0Value::Number(*stream_id as f64).serialize());
+                    }
+                    NetStreamCommand::CloseStream { stream_id } => {
+                        bytes.extend_from_slice(&AMF0Value::Number(*stream_id as f64).serialize());
+                    }
+                    NetStreamCommand::ReceiveAudio { should_receive } => {
+                        bytes.extend_from_slice(&AMF0Value::Boolean(*should_receive).serialize());
+                    }
+                    NetStreamCommand::ReceiveVideo { should_receive } => {
+                        bytes.extend_from_slice(&AMF0Value::Boolean(*should_receive).serialize());
+                    }
+                    NetStreamCommand::Publish {
+                        publishing_name,
+                        publishing_type,
+                    } => {
+                        bytes.extend_from_slice(&AMF0Value::String(publishing_name).serialize());
+                        bytes.extend_from_slice(&AMF0Value::String(publishing_type).serialize());
+                    }
+                    NetStreamCommand::Seek { milliseconds } => {
+                        bytes.extend_from_slice(&AMF0Value::Number(*milliseconds).serialize());
+                    }
+                    NetStreamCommand::Pause {
+                        is_paused,
+                        milliseconds,
+                    } => {
+                        bytes.extend_from_slice(&AMF0Value::Boolean(*is_paused).serialize());
+                        bytes.extend_from_slice(&AMF0Value::Number(*milliseconds).serialize());
+                    }
+                }
+            }
+            CommandMessage::Data(amf0_values) => {
+                for value in amf0_values {
+                    bytes.extend_from_slice(&value.serialize());
+                }
+            }
+            CommandMessage::Audio(bytes) => return bytes.clone(),
+            CommandMessage::Video(bytes) => return bytes.clone(),
+        }
+        bytes.into()
     }
 }

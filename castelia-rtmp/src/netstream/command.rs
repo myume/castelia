@@ -135,4 +135,18 @@ impl<'a> NetStreamCommand<'a> {
             }
         })
     }
+
+    pub fn name(&self) -> &str {
+        match self {
+            NetStreamCommand::Play { .. } => "play",
+            NetStreamCommand::Play2 { .. } => "play2",
+            NetStreamCommand::DeleteStream { .. } => "deleteStream",
+            NetStreamCommand::CloseStream { .. } => "closeStream",
+            NetStreamCommand::ReceiveAudio { .. } => "receiveAudio",
+            NetStreamCommand::ReceiveVideo { .. } => "receiveVideo",
+            NetStreamCommand::Publish { .. } => "publish",
+            NetStreamCommand::Seek { .. } => "see",
+            NetStreamCommand::Pause { .. } => "pause",
+        }
+    }
 }

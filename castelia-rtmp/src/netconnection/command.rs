@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::amf;
 
 #[derive(Debug)]
@@ -6,6 +8,21 @@ pub enum NetConnectionCommandType<'a> {
     Call(&'a str),
     Close,
     CreateStream,
+}
+
+impl<'a> Display for NetConnectionCommandType<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                NetConnectionCommandType::Connect => "connect",
+                NetConnectionCommandType::Call(procedure) => procedure,
+                NetConnectionCommandType::Close => "close",
+                NetConnectionCommandType::CreateStream => "createStream",
+            }
+        )
+    }
 }
 
 impl<'a> From<&'a str> for NetConnectionCommandType<'a> {
