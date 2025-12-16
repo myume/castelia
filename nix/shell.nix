@@ -6,14 +6,16 @@
   cargo,
   rustc,
   rustPlatform,
+  watchexec,
 }:
 mkShell {
-  nativeBuildInputs = [
+  packages = [
     cargo
     rustc
     rustfmt
     rust-analyzer
     clippy
+    watchexec
   ];
 
   env.RUST_SRC_PATH = "${rustPlatform.rustLibSrc}";
