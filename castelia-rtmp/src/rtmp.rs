@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     io,
     net::SocketAddr,
     sync::{Arc, Mutex},
@@ -21,15 +20,11 @@ use crate::{
 
 pub struct RTMPSever {
     listener: TcpListener,
-    _broadcasts: HashMap<String, tokio::sync::broadcast::Sender<Bytes>>,
 }
 
 impl RTMPSever {
     pub fn new(listener: TcpListener) -> Self {
-        Self {
-            listener,
-            _broadcasts: HashMap::new(),
-        }
+        Self { listener }
     }
 
     pub async fn run(&self) -> io::Result<()> {

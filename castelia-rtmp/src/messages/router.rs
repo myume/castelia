@@ -110,9 +110,11 @@ impl MessageRouter {
                         .await?;
                 } else {
                     trace!("routing message to netstream {message_stream_id}");
-                    let Some(_stream) = self.message_streams.get(&message_stream_id) else {
+                    let Some(stream) = self.message_streams.get(&message_stream_id) else {
                         return Err(RouteError::MissingNetStream(message_stream_id));
                     };
+
+                    stream.handle_message(command_message, send_queue);
                 }
             }
         }

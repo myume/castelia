@@ -63,8 +63,8 @@ impl NetConnection {
 
     pub async fn handle_user_control_message(
         &mut self,
-        _message: UserControlMessage,
-        _send_queue: Sender<SendQueueMessage>,
+        message: UserControlMessage,
+        send_queue: Sender<SendQueueMessage>,
     ) {
     }
 
