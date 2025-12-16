@@ -20,7 +20,7 @@ pub enum RouteError {
     MissingNetStream(u32),
     #[error("Netconnection commands must be issued on message stream 0, found {0}")]
     InvalidNetconnectionRoute(u32),
-    #[error("Failed to handle netconnection command")]
+    #[error("Failed to handle netconnection command: {0}")]
     HandleNetconnectonError(
         #[source]
         #[from]
