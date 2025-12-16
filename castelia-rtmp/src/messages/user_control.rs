@@ -11,7 +11,7 @@ pub enum ParseError {
     InvalidMessageSize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum UserControlMessage {
     StreamBegin(u32),
     StreamEOF(u32),
@@ -65,38 +65,103 @@ impl UserControlMessage {
         let mut bytes = BytesMut::new();
         match self {
             UserControlMessage::StreamBegin(data) => {
-                bytes.put_u8(0);
+                bytes.put_u16(0);
                 bytes.extend_from_slice(&data.to_be_bytes());
             }
             UserControlMessage::StreamEOF(data) => {
-                bytes.put_u8(1);
+                bytes.put_u16(1);
                 bytes.extend_from_slice(&data.to_be_bytes());
             }
             UserControlMessage::StreamDry(data) => {
-                bytes.put_u8(2);
+                bytes.put_u16(2);
                 bytes.extend_from_slice(&data.to_be_bytes());
             }
             UserControlMessage::SetBufferLength {
                 message_stream_id,
                 buffer_size_in_millis,
             } => {
+                bytes.put_u16(3);
                 bytes.extend_from_slice(&message_stream_id.to_be_bytes());
                 bytes.extend_from_slice(&buffer_size_in_millis.to_be_bytes());
             }
             UserControlMessage::StreamIsRecord(data) => {
-                bytes.put_u8(4);
+                bytes.put_u16(4);
                 bytes.extend_from_slice(&data.to_be_bytes());
             }
             UserControlMessage::PingRequest(data) => {
-                bytes.put_u8(5);
+                bytes.put_u16(5);
                 bytes.extend_from_slice(&data.to_be_bytes());
             }
             UserControlMessage::PingRepsonse(data) => {
-                bytes.put_u8(6);
+                bytes.put_u16(6);
                 bytes.extend_from_slice(&data.to_be_bytes());
             }
         }
 
         bytes.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_stream_begin() {
+        let expected = UserControlMessage::StreamBegin(rand::random());
+        let bytes = expected.serialize();
+        let actual = UserControlMessage::parse_message(&bytes).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_stream_eof() {
+        let expected = UserControlMessage::StreamEOF(rand::random());
+        let bytes = expected.serialize();
+        let actual = UserControlMessage::parse_message(&bytes).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_stream_dry() {
+        let expected = UserControlMessage::StreamDry(rand::random());
+        let bytes = expected.serialize();
+        let actual = UserControlMessage::parse_message(&bytes).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_stream_is_record() {
+        let expected = UserControlMessage::StreamIsRecord(rand::random());
+        let bytes = expected.serialize();
+        let actual = UserControlMessage::parse_message(&bytes).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_ping_request() {
+        let expected = UserControlMessage::PingRequest(rand::random());
+        let bytes = expected.serialize();
+        let actual = UserControlMessage::parse_message(&bytes).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_ping_response() {
+        let expected = UserControlMessage::PingRepsonse(rand::random());
+        let bytes = expected.serialize();
+        let actual = UserControlMessage::parse_message(&bytes).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_set_buffer_length() {
+        let expected = UserControlMessage::SetBufferLength {
+            message_stream_id: rand::random(),
+            buffer_size_in_millis: rand::random(),
+        };
+        let bytes = expected.serialize();
+        let actual = UserControlMessage::parse_message(&bytes).unwrap();
+        assert_eq!(expected, actual);
     }
 }
