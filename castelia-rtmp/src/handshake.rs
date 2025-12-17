@@ -89,10 +89,10 @@ async fn read_chunk(
     socket: &mut TcpStream,
     buf: &mut [u8; HANDSHAKE_CHUNK_SIZE],
 ) -> Result<(), HandshakeError> {
-    let mut total_bytes_read = 0;
-    while total_bytes_read < HANDSHAKE_CHUNK_SIZE {
-        total_bytes_read += socket.read(buf).await.map_err(HandshakeError::ReadError)?;
-    }
+    socket
+        .read_exact(buf)
+        .await
+        .map_err(HandshakeError::ReadError)?;
 
     Ok(())
 }
