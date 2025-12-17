@@ -10,7 +10,7 @@ use tracing::trace;
 use crate::{
     messages::{Message, command::CommandMessage},
     netconnection::{self, NetConnection},
-    netstream::NetStream,
+    netstream::{self, NetStream},
     rtmp::{RTMPConnectionState, SendQueueMessage},
 };
 
@@ -25,6 +25,12 @@ pub enum RouteError {
         #[source]
         #[from]
         netconnection::handler::HandleError,
+    ),
+    #[error("Failed to handle netstream command: {0}")]
+    HandleNetstreamError(
+        #[source]
+        #[from]
+        netstream::handler::HandleError,
     ),
 }
 
@@ -116,7 +122,7 @@ impl MessageRouter {
                         return Err(RouteError::MissingNetStream(message_stream_id));
                     };
 
-                    stream.handle_message(command_message, send_queue);
+                    stream.handle_message(command_message, send_queue).await?;
                 }
             }
         }
