@@ -119,7 +119,10 @@ impl RTMPConnection {
                 .map_err(|e| io::Error::other(e.to_string()))?
                 .max_chunk_size as usize;
 
-            let chunk = Chunk::read_chunk(&mut reader, &max_chunk_size).await?;
+            let chunk = self
+                .chunk_handler
+                .read_chunk(&mut reader, &max_chunk_size)
+                .await?;
             trace!("finished reading chunk");
 
             if let Some((message_bytes, message_type_id, message_stream_id)) =
