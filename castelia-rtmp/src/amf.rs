@@ -74,34 +74,6 @@ impl<'a> TryFrom<AMF0Value<'a>> for &'a str {
     }
 }
 
-impl<'a> TryFrom<AMF0Value<'a>> for Option<bool> {
-    type Error = CastError;
-
-    fn try_from(value: AMF0Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            AMF0Value::Boolean(val) => Ok(Some(val)),
-            AMF0Value::Null => Ok(None),
-            found => Err(CastError::TypeMismatch(format!(
-                "Expected number, found {found:?}"
-            ))),
-        }
-    }
-}
-
-impl<'a> TryFrom<AMF0Value<'a>> for Option<f64> {
-    type Error = CastError;
-
-    fn try_from(value: AMF0Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            AMF0Value::Number(num) => Ok(Some(num)),
-            AMF0Value::Null => Ok(None),
-            found => Err(CastError::TypeMismatch(format!(
-                "Expected number, found {found:?}"
-            ))),
-        }
-    }
-}
-
 impl<'a> TryFrom<AMF0Value<'a>> for f64 {
     type Error = CastError;
 
@@ -144,8 +116,6 @@ pub enum DecodeError {
     InvalidUtf8(#[from] str::Utf8Error),
     #[error("Invalid object key")]
     InvalidObjectKey,
-    #[error("Missing type marker")]
-    MissingTypeMarker,
     #[error("Invalid number")]
     InvalidNumber,
     #[error("Invalid bool")]
@@ -171,10 +141,7 @@ impl<'a> Decoder<'a> {
     }
 
     pub fn decode(&mut self) -> Result<AMF0Value<'a>, DecodeError> {
-        let type_marker = self
-            .get_buf()?
-            .first()
-            .ok_or(DecodeError::MissingTypeMarker)?;
+        let type_marker = self.get_buf()?.first().ok_or(DecodeError::UnexpectedEOF)?;
         self.cursor
             .seek_relative(1)
             .map_err(|_| DecodeError::UnexpectedEOF)?;

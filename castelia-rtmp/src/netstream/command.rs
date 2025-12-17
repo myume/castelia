@@ -1,5 +1,5 @@
 use crate::{
-    amf::{AMF0Value, Decoder},
+    amf::{AMF0Value, DecodeError, Decoder},
     messages,
 };
 
@@ -41,12 +41,28 @@ pub enum NetStreamCommand<'a> {
 }
 
 impl<'a> NetStreamCommand<'a> {
+    fn parse_optional(decoder: &mut Decoder<'a>) -> Result<Option<AMF0Value<'a>>, DecodeError> {
+        decoder.decode().map(Some).or_else(|err| {
+            if matches!(err, DecodeError::UnexpectedEOF) {
+                Ok(None)
+            } else {
+                Err(err)
+            }
+        })
+    }
+
     fn parse_play(buf: &'a [u8]) -> Result<Self, messages::command::ParseError> {
         let mut decoder = Decoder::new(buf);
         let stream_name = decoder.decode()?.try_into()?;
-        let start = decoder.decode()?.try_into()?;
-        let duration = decoder.decode()?.try_into()?;
-        let reset = decoder.decode()?.try_into()?;
+        let start = Self::parse_optional(&mut decoder)?
+            .map(|val| val.try_into())
+            .transpose()?;
+        let duration = Self::parse_optional(&mut decoder)?
+            .map(|val| val.try_into())
+            .transpose()?;
+        let reset = Self::parse_optional(&mut decoder)?
+            .map(|val| val.try_into())
+            .transpose()?;
         Ok(Self::Play {
             stream_name,
             start,
@@ -175,8 +191,8 @@ mod tests {
             actual,
             NetStreamCommand::Play {
                 stream_name: "test",
-                start: start.try_into().unwrap(),
-                duration: duration.try_into().unwrap(),
+                start: Some(start.try_into().unwrap()),
+                duration: Some(duration.try_into().unwrap()),
                 reset: Some(true)
             }
         )
@@ -290,5 +306,21 @@ mod tests {
                 milliseconds: milliseconds.try_into().unwrap()
             }
         )
+    }
+
+    #[test]
+    fn test_parse_play_command_from_amf() {
+        let expected = NetStreamCommand::Play {
+            stream_name: "test",
+            start: None,
+            duration: None,
+            reset: None,
+        };
+        let bytes = [AMF0Value::String("test")]
+            .map(|val| val.serialize())
+            .concat();
+
+        let actual = NetStreamCommand::parse_play(&bytes).unwrap();
+        assert_eq!(actual, expected);
     }
 }

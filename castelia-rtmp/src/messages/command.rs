@@ -165,24 +165,15 @@ impl<'a> CommandMessage<'a> {
                         reset,
                     } => {
                         bytes.extend_from_slice(&AMF0Value::String(stream_name).serialize());
-                        bytes.extend_from_slice(
-                            &start
-                                .map(AMF0Value::Number)
-                                .unwrap_or(AMF0Value::Null)
-                                .serialize(),
-                        );
-                        bytes.extend_from_slice(
-                            &duration
-                                .map(AMF0Value::Number)
-                                .unwrap_or(AMF0Value::Null)
-                                .serialize(),
-                        );
-                        bytes.extend_from_slice(
-                            &reset
-                                .map(AMF0Value::Boolean)
-                                .unwrap_or(AMF0Value::Null)
-                                .serialize(),
-                        );
+                        if let Some(start) = start {
+                            bytes.extend_from_slice(&AMF0Value::Number(*start).serialize());
+                        }
+                        if let Some(duration) = duration {
+                            bytes.extend_from_slice(&AMF0Value::Number(*duration).serialize());
+                        }
+                        if let Some(reset) = reset {
+                            bytes.extend_from_slice(&AMF0Value::Boolean(*reset).serialize());
+                        }
                     }
                     NetStreamCommand::Play2 { parameters } => {
                         bytes.extend_from_slice(&parameters.serialize());
@@ -264,7 +255,58 @@ mod tests {
             command_object: AMF0Value::Null,
         };
         let bytes = expected.serialize();
-        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        let actual = CommandMessage::parse_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parse_play_command_no_body() {
+        let expected = CommandMessage::NetStreamCommand {
+            command: NetStreamCommand::Play {
+                stream_name: "test",
+                start: None,
+                duration: None,
+                reset: None,
+            },
+            transaction_id: 0.0,
+            command_object: AMF0Value::Null,
+        };
+        let bytes = expected.serialize();
+
+        let expected_bytes = [
+            AMF0Value::String("play"),
+            AMF0Value::Number(0.0),
+            AMF0Value::Null,
+            AMF0Value::String("test"),
+        ]
+        .map(|val| val.serialize())
+        .concat();
+        assert_eq!(bytes, Bytes::from(expected_bytes));
+        let actual = CommandMessage::parse_command(&bytes).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_play_command_from_amf() {
+        let expected = CommandMessage::NetStreamCommand {
+            command: NetStreamCommand::Play {
+                stream_name: "test",
+                start: None,
+                duration: None,
+                reset: None,
+            },
+            transaction_id: 0.0,
+            command_object: AMF0Value::Null,
+        };
+        let bytes = [
+            AMF0Value::String("play"),
+            AMF0Value::Number(0.0),
+            AMF0Value::Null,
+            AMF0Value::String("test"),
+        ]
+        .map(|val| val.serialize())
+        .concat();
+        let actual = CommandMessage::parse_command(&bytes).unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -292,7 +334,7 @@ mod tests {
             command_object: AMF0Value::Null,
         };
         let bytes = expected.serialize();
-        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        let actual = CommandMessage::parse_command(&bytes).unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -306,7 +348,7 @@ mod tests {
             command_object: AMF0Value::Null,
         };
         let bytes = expected.serialize();
-        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        let actual = CommandMessage::parse_command(&bytes).unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -320,7 +362,7 @@ mod tests {
             command_object: AMF0Value::Null,
         };
         let bytes = expected.serialize();
-        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        let actual = CommandMessage::parse_command(&bytes).unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -335,7 +377,7 @@ mod tests {
             command_object: AMF0Value::Null,
         };
         let bytes = expected.serialize();
-        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        let actual = CommandMessage::parse_command(&bytes).unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -349,7 +391,7 @@ mod tests {
             command_object: AMF0Value::Null,
         };
         let bytes = expected.serialize();
-        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        let actual = CommandMessage::parse_command(&bytes).unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -364,7 +406,7 @@ mod tests {
             command_object: AMF0Value::Null,
         };
         let bytes = expected.serialize();
-        let actual = CommandMessage::parse_netstream_command(&bytes).unwrap();
+        let actual = CommandMessage::parse_command(&bytes).unwrap();
         assert_eq!(actual, expected);
     }
 }
