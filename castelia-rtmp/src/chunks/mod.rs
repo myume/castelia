@@ -77,7 +77,7 @@ impl Chunk {
             max_bytes_remaining.min(header.get_message_length().unwrap_or(0) as usize);
 
         let mut payload = BytesMut::zeroed(payload_size);
-        reader.read_exact(&mut payload).await?;
+        timeout(Duration::from_secs(30), reader.read_buf(&mut payload)).await??;
         trace!("message read {:?}", &payload);
 
         Ok(Self {
