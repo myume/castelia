@@ -1,8 +1,14 @@
+use std::collections::HashMap;
+
+use bytes::Bytes;
 use thiserror::Error;
 use tokio::sync::mpsc::Sender;
+use tracing::{error, trace};
 
 use crate::{
-    messages::command::CommandMessage,
+    amf::AMF0Value,
+    chunks::header::FullMessageHeader,
+    messages::command::{CommandMessage, command_message_type::COMMAND_AMF0},
     netstream::{NetStream, NetStreamState, command::NetStreamCommand},
     rtmp::{Broadcasts, SendQueueMessage},
 };
@@ -11,6 +17,8 @@ use crate::{
 pub enum HandleError {
     #[error("Unsupported command \"{0}\"")]
     UnsupportedCommand(String),
+    #[error("Only live broadcasts are supported")]
+    NoneLiveBroadcast,
 }
 
 impl NetStream {
@@ -21,11 +29,40 @@ impl NetStream {
         send_queue: Sender<SendQueueMessage>,
         broadcaster: Broadcasts,
     ) -> Result<(), HandleError> {
-        // assume no authentication for now, we will need to add it later
-        let mut broadcaster = broadcaster.lock().await;
-        self.stream = Some(broadcaster.create_stream(stream_key).await);
+        if publishing_type != "live" {
+            return Err(HandleError::NoneLiveBroadcast);
+        }
 
+        self.stream = Some(broadcaster.lock().await.create_stream(stream_key).await);
         self.state = NetStreamState::Publishing;
+        trace!("Stream created");
+
+        let message = [
+            AMF0Value::String("onStatus"),
+            AMF0Value::Number(0.0),
+            AMF0Value::Null,
+            AMF0Value::Object(HashMap::from([
+                ("level", AMF0Value::String("status")),
+                ("code", AMF0Value::String("NetStream.Publish.Start")),
+            ])),
+        ]
+        .map(|val| val.serialize())
+        .concat();
+        if let Err(e) = send_queue
+            .send((
+                FullMessageHeader {
+                    timestamp: 0,
+                    extended_timestamp: None,
+                    message_length: message.len() as u32,
+                    message_type_id: COMMAND_AMF0,
+                    message_stream_id: 1,
+                },
+                Bytes::from(message),
+            ))
+            .await
+        {
+            error!("Failed to send message: {e}");
+        };
         Ok(())
     }
 
