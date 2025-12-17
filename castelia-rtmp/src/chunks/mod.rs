@@ -72,12 +72,10 @@ impl Chunk {
         let header = timeout(Duration::from_secs(30), ChunkHeader::read_header(reader)).await??;
         debug!("chunk header has been parsed:\n{:#?}", header);
 
-        let max_bytes_remaining = max_chunk_size - header.bytes_read();
-        let payload_size =
-            max_bytes_remaining.min(header.get_message_length().unwrap_or(0) as usize);
+        let payload_size = (*max_chunk_size).min(header.get_message_length().unwrap_or(0) as usize);
 
         let mut payload = BytesMut::zeroed(payload_size);
-        timeout(Duration::from_secs(30), reader.read_buf(&mut payload)).await??;
+        timeout(Duration::from_secs(30), reader.read_exact(&mut payload)).await??;
         trace!("message read {:?}", &payload);
 
         Ok(Self {
