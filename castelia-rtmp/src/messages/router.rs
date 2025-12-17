@@ -10,13 +10,13 @@ use tracing::trace;
 use crate::{
     messages::{Message, command::CommandMessage},
     netconnection::{self, NetConnection},
-    netstream::{self, NetStream},
+    netstream::{self, NetStream, command::NetStreamCommand},
     rtmp::{RTMPConnectionState, SendQueueMessage},
 };
 
 #[derive(Error, Debug)]
 pub enum RouteError {
-    #[error("Message was routed to message stream {0}, which does not exist")]
+    #[error("Message stream with id {0} does not exist")]
     MissingNetStream(u32),
     #[error("Netconnection commands must be issued on message stream 0, found {0}")]
     InvalidNetconnectionRoute(u32),
@@ -40,8 +40,8 @@ pub struct MessageStream {
 }
 
 impl MessageStream {
-    pub fn get(&self, msid: &u32) -> Option<&NetStream> {
-        self.message_streams.get(msid)
+    pub fn get_mut(&mut self, msid: &u32) -> Option<&mut NetStream> {
+        self.message_streams.get_mut(msid)
     }
 
     pub fn create_stream(&mut self) -> u32 {
@@ -102,6 +102,15 @@ impl MessageRouter {
                     .await
             }
             Message::Command(command_message) => {
+                if let CommandMessage::NetStreamCommand { ref command, .. } = command_message
+                    && let NetStreamCommand::DeleteStream { stream_id } = command
+                {
+                    if self.message_streams.delete_stream(stream_id).is_none() {
+                        return Err(RouteError::MissingNetStream(*stream_id));
+                    }
+                    return Ok(());
+                }
+
                 if let CommandMessage::NetConnection(command) = command_message {
                     trace!("routing message to netconnection");
                     if message_stream_id != 0 {
@@ -118,7 +127,7 @@ impl MessageRouter {
                         .await?;
                 } else {
                     trace!("routing message to netstream {message_stream_id}");
-                    let Some(stream) = self.message_streams.get(&message_stream_id) else {
+                    let Some(stream) = self.message_streams.get_mut(&message_stream_id) else {
                         return Err(RouteError::MissingNetStream(message_stream_id));
                     };
 
