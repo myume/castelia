@@ -11,5 +11,8 @@ rand.workspace = true
 bytes.workspace = true
 async-trait.workspace = true
 
+[dev-dependencies]
+pretty_assertions.workspace = true
+
 [lints]
 workspace = true

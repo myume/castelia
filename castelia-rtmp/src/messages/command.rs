@@ -228,6 +228,7 @@ mod tests {
     use crate::netconnection::command::NetConnectionCommandType;
 
     use super::*;
+    use pretty_assertions::{assert_eq, assert_ne};
 
     #[test]
     fn test_serialize_parse_netconnection_command() {
@@ -408,5 +409,44 @@ mod tests {
         let bytes = expected.serialize();
         let actual = CommandMessage::parse_command(&bytes).unwrap();
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_data() {
+        let input = b"\x02\0\r@setDataFrame\x02\0\nonMetaData\x08\0\0\0\x14\0\x08duration\0\0\0\0\0\0\0\0\0\0\x08fileSize\0\0\0\0\0\0\0\0\0\0\x05width\0@\xae\0\0\0\0\0\0\0\x06height\0@\xa0\xe0\0\0\0\0\0\0\x0cvideocodecid\0@\x1c\0\0\0\0\0\0\0\rvideodatarate\0@\xa3\x88\0\0\0\0\0\0\tframerate\0@N\0\0\0\0\0\0\0\x0caudiocodecid\0@$\0\0\0\0\0\0\0\raudiodatarate\0@d\0\0\0\0\0\0\0\x0faudiosamplerate\0@\xe7p\0\0\0\0\0\0\x0faudiosamplesize\0@0\0\0\0\0\0\0\0\raudiochannels\0@\0\0\0\0\0\0\0\0\x06stereo\x01\x01\0\x032.1\x01\0\0\x033.1\x01\0\0\x034.0\x01\0\0\x034.1\x01\0\0\x035.1\x01\0\0\x037.1\x01\0\0\x07encoder\x02\0)obs-output module (libobs version 32.0.1)\0\0\t";
+
+        let actual = CommandMessage::parse_data_message(input).unwrap();
+        assert_eq!(
+            actual,
+            CommandMessage::Data(vec![
+                AMF0Value::String("@setDataFrame"),
+                AMF0Value::String("onMetaData"),
+                AMF0Value::EcmaArray(HashMap::from([
+                    ("duration", AMF0Value::Number(0.0)),
+                    ("fileSize", AMF0Value::Number(0.0)),
+                    ("width", AMF0Value::Number(3840.0)),
+                    ("height", AMF0Value::Number(2160.0)),
+                    ("videocodecid", AMF0Value::Number(7.0)),
+                    ("videodatarate", AMF0Value::Number(2500.0)),
+                    ("framerate", AMF0Value::Number(60.0)),
+                    ("audiocodecid", AMF0Value::Number(10.0)),
+                    ("audiodatarate", AMF0Value::Number(160.0)),
+                    ("audiosamplerate", AMF0Value::Number(48000.0)),
+                    ("audiosamplesize", AMF0Value::Number(16.0)),
+                    ("audiochannels", AMF0Value::Number(2.0)),
+                    ("stereo", AMF0Value::Boolean(true)),
+                    ("2.1", AMF0Value::Boolean(false)),
+                    ("3.1", AMF0Value::Boolean(false)),
+                    ("4.0", AMF0Value::Boolean(false)),
+                    ("4.1", AMF0Value::Boolean(false)),
+                    ("5.1", AMF0Value::Boolean(false)),
+                    ("7.1", AMF0Value::Boolean(false)),
+                    (
+                        "encoder",
+                        AMF0Value::String("obs-output module (libobs version 32.0.1)")
+                    ),
+                ]))
+            ])
+        );
     }
 }

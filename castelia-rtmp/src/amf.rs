@@ -16,10 +16,13 @@ mod amf0_type_marker {
     pub const STRING: u8 = 0x02;
     pub const OBJECT_START: u8 = 0x03;
 
+    pub const ECMA_ARRAY: u8 = 0x08;
+    pub const NULL: u8 = 0x05;
+
     // needs to be preceeded by 2 0x00s
     // so actual object end is 0x00, 0x00, 0x09
-    pub const OBJECT_END: u8 = 0x09;
-    pub const NULL: u8 = 0x05;
+    const OBJECT_END: u8 = 0x09;
+    pub const OBJECT_END_MARKER: [u8; 3] = [0x00, 0x00, OBJECT_END];
 }
 
 #[derive(Debug, PartialEq)]
@@ -28,35 +31,47 @@ pub enum AMF0Value<'a> {
     Boolean(bool),
     String(&'a str),
     Object(HashMap<&'a str, AMF0Value<'a>>),
+    EcmaArray(HashMap<&'a str, AMF0Value<'a>>),
     Null,
 }
 
 impl<'a> AMF0Value<'a> {
     pub fn serialize(&self) -> Vec<u8> {
-        match *self {
+        match self {
             AMF0Value::Number(num) => {
                 let mut bytes = vec![amf0_type_marker::NUMBER];
                 bytes.extend_from_slice(&num.to_be_bytes());
                 bytes
             }
-            AMF0Value::Boolean(val) => vec![amf0_type_marker::BOOL, if val { 0x01 } else { 0x00 }],
+            AMF0Value::Boolean(val) => vec![amf0_type_marker::BOOL, if *val { 0x01 } else { 0x00 }],
             AMF0Value::String(s) => {
                 let mut bytes = vec![amf0_type_marker::STRING];
                 bytes.extend_from_slice(&(s.len() as u16).to_be_bytes());
                 bytes.extend_from_slice(s.as_bytes());
                 bytes
             }
-            AMF0Value::Object(ref object) => {
+            AMF0Value::Object(object) => {
                 let mut bytes = vec![amf0_type_marker::OBJECT_START];
                 for (key, value) in object {
                     bytes.extend_from_slice(&(key.len() as u16).to_be_bytes());
                     bytes.extend_from_slice(key.as_bytes());
                     bytes.extend_from_slice(&value.serialize());
                 }
-                bytes.extend_from_slice(&[0x00, 0x00, amf0_type_marker::OBJECT_END]);
+                bytes.extend_from_slice(&amf0_type_marker::OBJECT_END_MARKER);
                 bytes
             }
             AMF0Value::Null => vec![amf0_type_marker::NULL],
+            AMF0Value::EcmaArray(amf0_values) => {
+                let mut bytes = vec![amf0_type_marker::ECMA_ARRAY];
+                bytes.extend_from_slice(&(amf0_values.len() as u32).to_be_bytes());
+                for (key, value) in amf0_values {
+                    bytes.extend_from_slice(&(key.len() as u16).to_be_bytes());
+                    bytes.extend_from_slice(key.as_bytes());
+                    bytes.extend_from_slice(&value.serialize());
+                }
+                bytes.extend_from_slice(&amf0_type_marker::OBJECT_END_MARKER);
+                bytes
+            }
         }
     }
 }
@@ -151,10 +166,20 @@ impl<'a> Decoder<'a> {
             amf0_type_marker::STRING => self.decode_string()?,
             amf0_type_marker::OBJECT_START => self.decode_object()?,
             amf0_type_marker::NULL => AMF0Value::Null,
+            amf0_type_marker::ECMA_ARRAY => self.decode_ecma_array()?,
             marker => return Err(DecodeError::UnknownMarker(marker)),
         };
 
         Ok(value)
+    }
+
+    fn decode_ecma_array(&mut self) -> Result<AMF0Value<'a>, DecodeError> {
+        // skip 4 byte count
+        self.cursor
+            .seek_relative(4)
+            .map_err(|_| DecodeError::UnexpectedEOF)?;
+
+        Ok(AMF0Value::EcmaArray(self.read_kv_pairs()?))
     }
 
     fn decode_number(&mut self) -> Result<AMF0Value<'a>, DecodeError> {
@@ -206,21 +231,24 @@ impl<'a> Decoder<'a> {
         Ok(AMF0Value::String(str::from_utf8(value)?))
     }
 
-    fn decode_object(&mut self) -> Result<AMF0Value<'a>, DecodeError> {
-        let end_marker = [0x00, 0x00, amf0_type_marker::OBJECT_END];
-        let mut obj = HashMap::new();
-        while self.get_buf()?.get(..3) != Some(&end_marker) {
+    fn read_kv_pairs(&mut self) -> Result<HashMap<&'a str, AMF0Value<'a>>, DecodeError> {
+        let mut map = HashMap::new();
+        while self.get_buf()?.get(..3) != Some(&amf0_type_marker::OBJECT_END_MARKER) {
             let AMF0Value::String(key) = self.decode_string()? else {
                 return Err(DecodeError::InvalidObjectKey);
             };
             let value = self.decode()?;
-            obj.insert(key, value);
+            map.insert(key, value);
         }
         self.cursor
             .seek_relative(3)
             .map_err(|_| DecodeError::UnexpectedEOF)?;
 
-        Ok(AMF0Value::Object(obj))
+        Ok(map)
+    }
+
+    fn decode_object(&mut self) -> Result<AMF0Value<'a>, DecodeError> {
+        Ok(AMF0Value::Object(self.read_kv_pairs()?))
     }
 
     #[cfg(test)]
@@ -338,6 +366,19 @@ mod tests {
     #[test]
     fn test_encode_decode_object() {
         let val = AMF0Value::Object(HashMap::from([
+            ("test", AMF0Value::Number(rand::random())),
+            ("hello", AMF0Value::String("world")),
+            ("test3", AMF0Value::Boolean(true)),
+        ]));
+        let bytes = val.serialize();
+        let mut decoder = Decoder::new(&bytes);
+        assert_eq!(Ok(val), decoder.decode());
+        assert_eq!(decoder.position(), bytes.len().try_into().unwrap());
+    }
+
+    #[test]
+    fn test_encode_decode_ecma_array() {
+        let val = AMF0Value::EcmaArray(HashMap::from([
             ("test", AMF0Value::Number(rand::random())),
             ("hello", AMF0Value::String("world")),
             ("test3", AMF0Value::Boolean(true)),

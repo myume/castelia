@@ -18,7 +18,7 @@ pub enum ParseMessageError {
     InvalidMessageTypeId(u8),
     #[error("Invalid message size")]
     InvalidMessageSize,
-    #[error("Invalid command")]
+    #[error("Invalid command: {0}")]
     BadCommandMessage(
         #[source]
         #[from]
