@@ -7,6 +7,7 @@
   rustc,
   rustPlatform,
   watchexec,
+  ffmpeg,
 }:
 mkShell {
   packages = [
@@ -16,6 +17,7 @@ mkShell {
     rust-analyzer
     clippy
     watchexec
+    ffmpeg
   ];
 
   env.RUST_SRC_PATH = "${rustPlatform.rustLibSrc}";
