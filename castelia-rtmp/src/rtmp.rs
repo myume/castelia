@@ -13,18 +13,27 @@ use tokio::{
 use tracing::{Instrument, debug, error, info, instrument, trace};
 
 use crate::{
+    broadcast::{Broadcaster, naive::SingleNodeBroadcaster},
     chunks::{Chunk, SERVER_CHUNK_SIZE, chunk_handler::ChunkHandler, header::FullMessageHeader},
     handshake::handshake,
     messages::{Message, protocol_control::PeerBandwidth, router::MessageRouter},
 };
 
+pub(crate) type Broadcasts = Arc<tokio::sync::Mutex<Box<dyn Broadcaster + Send + Sync>>>;
+
 pub struct RTMPSever {
     listener: TcpListener,
+    broadcaster: Broadcasts,
 }
 
 impl RTMPSever {
     pub fn new(listener: TcpListener) -> Self {
-        Self { listener }
+        Self {
+            listener,
+            broadcaster: Arc::new(tokio::sync::Mutex::new(Box::new(
+                SingleNodeBroadcaster::new(),
+            ))),
+        }
     }
 
     pub async fn run(&self) -> io::Result<()> {
@@ -32,8 +41,9 @@ impl RTMPSever {
             let (socket, addr) = self.listener.accept().await?;
             debug!("Accepted connection from {addr}");
 
+            let broadcaster = self.broadcaster.clone();
             tokio::spawn(async move {
-                handle_rtmp_connection(socket, addr).await;
+                handle_rtmp_connection(socket, addr, broadcaster).await;
             });
         }
     }
@@ -46,8 +56,8 @@ impl RTMPSever {
         address =  addr.to_string()
     )
 )]
-async fn handle_rtmp_connection(socket: TcpStream, addr: SocketAddr) {
-    let connection = RTMPConnection::new();
+async fn handle_rtmp_connection(socket: TcpStream, addr: SocketAddr, broadcaster: Broadcasts) {
+    let connection = RTMPConnection::new(broadcaster);
     if let Err(e) = connection.process(socket).await {
         error!("Failed to process rtmp connection: {e}");
     }
@@ -90,14 +100,16 @@ struct RTMPConnection {
     chunk_handler: ChunkHandler,
     message_router: MessageRouter,
     connection_state: Arc<Mutex<RTMPConnectionState>>,
+    broadcaster: Broadcasts,
 }
 
 impl RTMPConnection {
-    pub fn new() -> Self {
+    pub fn new(broadcaster: Broadcasts) -> Self {
         Self {
             chunk_handler: ChunkHandler::new(),
             message_router: MessageRouter::new(),
             connection_state: Arc::new(Mutex::new(RTMPConnectionState::default())),
+            broadcaster,
         }
     }
 
@@ -138,6 +150,7 @@ impl RTMPConnection {
                                 message_stream_id,
                                 sender.clone(),
                                 self.connection_state.clone(),
+                                self.broadcaster.clone(),
                             )
                             .await
                         {

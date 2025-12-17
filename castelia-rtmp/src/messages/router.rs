@@ -11,7 +11,7 @@ use crate::{
     messages::{Message, command::CommandMessage},
     netconnection::{self, NetConnection},
     netstream::{self, NetStream, command::NetStreamCommand},
-    rtmp::{RTMPConnectionState, SendQueueMessage},
+    rtmp::{Broadcasts, RTMPConnectionState, SendQueueMessage},
 };
 
 #[derive(Error, Debug)]
@@ -81,6 +81,7 @@ impl MessageRouter {
         message_stream_id: u32,
         send_queue: Sender<SendQueueMessage>,
         connection_state: Arc<Mutex<RTMPConnectionState>>,
+        broadcaster: Broadcasts,
     ) -> Result<(), RouteError> {
         match message {
             Message::Protocol(protocol_control_message) => {
@@ -131,7 +132,9 @@ impl MessageRouter {
                         return Err(RouteError::MissingNetStream(message_stream_id));
                     };
 
-                    stream.handle_message(command_message, send_queue).await?;
+                    stream
+                        .handle_message(command_message, send_queue, broadcaster)
+                        .await?;
                 }
             }
         }

@@ -1,3 +1,5 @@
+use crate::broadcast::BroadcastStreamer;
+
 pub mod command;
 pub mod handler;
 
@@ -8,15 +10,16 @@ enum NetStreamState {
     Closed,
 }
 
-#[derive(Debug)]
 pub struct NetStream {
     state: NetStreamState,
+    stream: Option<Box<dyn BroadcastStreamer + Send>>,
 }
 
 impl NetStream {
     pub fn new() -> Self {
         Self {
             state: NetStreamState::Active,
+            stream: None,
         }
     }
 }

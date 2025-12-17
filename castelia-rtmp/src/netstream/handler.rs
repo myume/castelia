@@ -4,7 +4,7 @@ use tokio::sync::mpsc::Sender;
 use crate::{
     messages::command::CommandMessage,
     netstream::{NetStream, NetStreamState, command::NetStreamCommand},
-    rtmp::SendQueueMessage,
+    rtmp::{Broadcasts, SendQueueMessage},
 };
 
 #[derive(Error, Debug)]
@@ -16,11 +16,14 @@ pub enum HandleError {
 impl NetStream {
     async fn handle_publish(
         &mut self,
-        publishing_name: &str,
+        stream_key: &str,
         publishing_type: &str,
         send_queue: Sender<SendQueueMessage>,
+        broadcaster: Broadcasts,
     ) -> Result<(), HandleError> {
         // assume no authentication for now, we will need to add it later
+        let mut broadcaster = broadcaster.lock().await;
+        self.stream = Some(broadcaster.create_stream(stream_key).await);
 
         self.state = NetStreamState::Publishing;
         Ok(())
@@ -31,6 +34,7 @@ impl NetStream {
         command: NetStreamCommand<'a>,
         transaction_id: f64,
         send_queue: Sender<SendQueueMessage>,
+        broadcaster: Broadcasts,
     ) -> Result<(), HandleError> {
         match command {
             NetStreamCommand::Play {
@@ -57,7 +61,7 @@ impl NetStream {
                 publishing_name,
                 publishing_type,
             } => {
-                self.handle_publish(publishing_name, publishing_type, send_queue)
+                self.handle_publish(publishing_name, publishing_type, send_queue, broadcaster)
                     .await?
             }
             NetStreamCommand::Seek { .. } => {
@@ -76,6 +80,7 @@ impl NetStream {
         &mut self,
         message: CommandMessage<'a>,
         send_queue: Sender<SendQueueMessage>,
+        broadcaster: Broadcasts,
     ) -> Result<(), HandleError> {
         match message {
             CommandMessage::NetConnection(_) => {
@@ -86,7 +91,7 @@ impl NetStream {
                 transaction_id,
                 ..
             } => {
-                self.handle_netstream_command(command, transaction_id, send_queue)
+                self.handle_netstream_command(command, transaction_id, send_queue, broadcaster)
                     .await
             }
             CommandMessage::Data(amf0_values) => todo!(),

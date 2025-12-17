@@ -9,6 +9,7 @@ tracing = { workspace = true, features = ["log"] }
 thiserror.workspace = true
 rand.workspace = true
 bytes.workspace = true
+async-trait.workspace = true
 
 [lints]
 workspace = true
