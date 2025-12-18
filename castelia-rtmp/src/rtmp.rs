@@ -21,12 +21,12 @@ use crate::{
 
 pub(crate) type Broadcasts = Arc<tokio::sync::Mutex<Box<dyn Broadcaster + Send + Sync>>>;
 
-pub struct RTMPSever {
+pub struct RTMPServer {
     listener: TcpListener,
     broadcaster: Broadcasts,
 }
 
-impl RTMPSever {
+impl RTMPServer {
     pub fn new(listener: TcpListener) -> Self {
         Self {
             listener,

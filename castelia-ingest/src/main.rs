@@ -1,4 +1,4 @@
-use castelia_rtmp::rtmp::RTMPSever;
+use castelia_rtmp::rtmp::RTMPServer;
 use tracing::info;
 
 #[tokio::main]
@@ -7,7 +7,7 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:1935").await?;
     info!("Listening on {}", listener.local_addr()?);
 
-    RTMPSever::new(listener).run().await?;
+    RTMPServer::new(listener).run().await?;
 
     Ok(())
 }
