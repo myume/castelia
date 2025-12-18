@@ -192,6 +192,8 @@ impl NetStream {
                     return error!("Failed to send message {e}");
                 }
             }
+
+            info!("Stream has finished");
         });
         Ok(())
     }

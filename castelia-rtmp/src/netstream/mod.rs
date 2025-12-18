@@ -11,7 +11,7 @@ enum NetStreamState {
 }
 
 pub struct NetStream {
-    id: u32,
+    pub id: u32,
     state: NetStreamState,
     stream: Option<Box<dyn BroadcastStreamer + Send>>,
     pub stream_key: Option<String>,
