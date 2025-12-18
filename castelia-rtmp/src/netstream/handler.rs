@@ -172,11 +172,18 @@ impl NetStream {
                     .await
             }
             CommandMessage::Data(amf0_values) => {
+                trace!("setting stream metadata");
                 self.handle_metadata(amf0_values, broadcaster).await
             }
-            CommandMessage::Audio(bytes) => self.handle_media(bytes).await,
+            CommandMessage::Audio(bytes) => {
+                trace!("sending audio data");
+                self.handle_media(bytes).await
+            }
 
-            CommandMessage::Video(bytes) => self.handle_media(bytes).await,
+            CommandMessage::Video(bytes) => {
+                trace!("sending video data");
+                self.handle_media(bytes).await
+            }
         }
     }
 }

@@ -123,7 +123,7 @@ impl RTMPConnection {
                 .in_current_span(),
         );
 
-        let mut reader = BufReader::new(read_half);
+        let mut reader = BufReader::with_capacity(65536, read_half);
         loop {
             let max_chunk_size = self
                 .connection_state
@@ -142,7 +142,8 @@ impl RTMPConnection {
             {
                 match Message::parse_message(&message_bytes, message_type_id) {
                     Ok(msg) => {
-                        info!("message received:\n{:#?}", msg);
+                        debug!("message received");
+                        trace!("received message: {:#?}", msg);
                         if let Err(e) = self
                             .message_router
                             .route_message(
@@ -154,7 +155,7 @@ impl RTMPConnection {
                             )
                             .await
                         {
-                            error!("failed to handle message: {e}");
+                            error!("Failed to handle message - {e}");
                         }
 
                         let abort_queue = &mut self
