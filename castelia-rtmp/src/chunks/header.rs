@@ -145,14 +145,6 @@ impl MessageHeader {
             _ => None,
         }
     }
-    pub fn bytes_read(&self) -> usize {
-        match self {
-            MessageHeader::Type0 { .. } => 11,
-            MessageHeader::Type1 { .. } => 7,
-            MessageHeader::Type2 { .. } => 3,
-            MessageHeader::Type3 => 0,
-        }
-    }
 
     pub fn has_extended_timestamp(&self) -> bool {
         0xFFFFFF
@@ -259,13 +251,6 @@ impl BasicHeader {
         bytes.into()
     }
 
-    pub fn bytes_read(&self) -> usize {
-        match self.header_type {
-            BasicHeaderType::One => 1,
-            BasicHeaderType::Two => 2,
-            BasicHeaderType::Three => 3,
-        }
-    }
     pub fn chunk_type(&self) -> u8 {
         self.chunk_type
     }
@@ -337,19 +322,6 @@ impl ChunkHeader {
             message_header,
             extended_timestamp,
         }
-    }
-
-    /// Return the number of bytes read in the header.
-    ///
-    /// This is the size of the *actual* header, not the internal representation
-    pub fn bytes_read(&self) -> usize {
-        self.basic_header.bytes_read()
-            + self.message_header.bytes_read()
-            + if self.extended_timestamp.is_some() {
-                4
-            } else {
-                0
-            }
     }
 
     pub fn get_message_type(&self) -> Option<u8> {
