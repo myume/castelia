@@ -75,6 +75,7 @@ impl NetStream {
         {
             error!("Failed to send message: {e}");
         };
+        info!("Published stream");
         Ok(())
     }
 

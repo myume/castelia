@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use thiserror::Error;
 use tokio::sync::mpsc::{Sender, error::SendError};
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     amf::AMF0Value,
@@ -117,6 +117,8 @@ impl NetConnection {
             ))
             .await?;
 
+        info!("connection established");
+
         Ok(())
     }
 
@@ -150,6 +152,8 @@ impl NetConnection {
             streams.delete_stream(&created_stream_id);
             return Err(HandleError::SendError(e));
         };
+
+        info!("Created stream {created_stream_id}");
         Ok(())
     }
 

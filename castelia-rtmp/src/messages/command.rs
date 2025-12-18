@@ -228,7 +228,7 @@ mod tests {
     use crate::netconnection::command::NetConnectionCommandType;
 
     use super::*;
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_serialize_parse_netconnection_command() {
