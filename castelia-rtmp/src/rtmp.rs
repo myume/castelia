@@ -195,7 +195,7 @@ impl RTMPConnection {
             for chunk in chunks {
                 trace!("sending chunk:\n{:#?}", &chunk);
                 if let Err(e) = writer.write_buf(&mut chunk.serialize()).await {
-                    error!("Failed to send message: {e}");
+                    return error!("Failed to send message: {e}");
                 }
             }
             debug!("sending message\n{:#?}", &message_header);

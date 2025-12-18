@@ -189,7 +189,7 @@ impl NetStream {
                     ))
                     .await
                 {
-                    error!("Failed to send message {e}");
+                    return error!("Failed to send message {e}");
                 }
             }
         });
