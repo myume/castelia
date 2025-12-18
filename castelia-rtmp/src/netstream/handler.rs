@@ -112,7 +112,45 @@ impl NetStream {
                 ))
                 .await
             {
-                error!("Failed to send metadata for stream {e}");
+                return error!("Failed to send metadata for stream {e}");
+            }
+
+            let Ok(audio_header) = receiver.receive_audio_header().await else {
+                return error!("Failed to get audio header for stream");
+            };
+            if let Err(e) = send_queue
+                .send((
+                    FullMessageHeader {
+                        timestamp: 0,
+                        extended_timestamp: None,
+                        message_length: audio_header.len() as u32,
+                        message_type_id: command_message_type::AUDIO,
+                        message_stream_id,
+                    },
+                    audio_header,
+                ))
+                .await
+            {
+                return error!("Failed to send audio_header for stream {e}");
+            }
+
+            let Ok(video_header) = receiver.receive_video_header().await else {
+                return error!("Failed to get video header for stream");
+            };
+            if let Err(e) = send_queue
+                .send((
+                    FullMessageHeader {
+                        timestamp: 0,
+                        extended_timestamp: None,
+                        message_length: video_header.len() as u32,
+                        message_type_id: command_message_type::VIDEO,
+                        message_stream_id,
+                    },
+                    video_header,
+                ))
+                .await
+            {
+                return error!("Failed to send video header for stream {e}");
             }
 
             while let Ok((media_type, data)) = receiver.receive_data().await {
@@ -218,11 +256,53 @@ impl NetStream {
         Ok(())
     }
 
+    async fn handle_media_header(
+        &mut self,
+        header: Bytes,
+        media_type: MediaType,
+        broadcaster: Broadcasts,
+    ) -> Result<(), HandleError> {
+        let Some(stream_key) = &self.stream_key else {
+            return Err(HandleError::BroadcastNotFound);
+        };
+
+        match media_type {
+            MediaType::Video => {
+                broadcaster
+                    .lock()
+                    .await
+                    .set_stream_video_header(stream_key, header)
+                    .await
+                    .map_err(|_| {
+                        error!("failed to set video header for stream");
+                        HandleError::BroadcastNotFound
+                    })?;
+                self.video_header_sent = true;
+            }
+            MediaType::Audio => {
+                broadcaster
+                    .lock()
+                    .await
+                    .set_stream_audio_header(stream_key, header)
+                    .await
+                    .map_err(|_| {
+                        error!("failed to set audio header for stream");
+                        HandleError::BroadcastNotFound
+                    })?;
+                self.audio_header_sent = true;
+            }
+        }
+        info!("{media_type:?} header sent");
+
+        Ok(())
+    }
+
     async fn handle_media(
         &mut self,
         bytes: Bytes,
         media_type: MediaType,
     ) -> Result<(), HandleError> {
+        trace!("sending {media_type:?} data");
         if let Some(stream) = &mut self.stream {
             stream
                 .send_data(bytes, media_type)
@@ -257,12 +337,22 @@ impl NetStream {
             }
             CommandMessage::Audio(bytes) => {
                 trace!("sending audio data");
-                self.handle_media(bytes, MediaType::Audio).await
+                if !self.audio_header_sent {
+                    self.handle_media_header(bytes, MediaType::Audio, broadcaster)
+                        .await
+                } else {
+                    self.handle_media(bytes, MediaType::Audio).await
+                }
             }
 
             CommandMessage::Video(bytes) => {
                 trace!("sending video data");
-                self.handle_media(bytes, MediaType::Video).await
+                if !self.video_header_sent {
+                    self.handle_media_header(bytes, MediaType::Video, broadcaster)
+                        .await
+                } else {
+                    self.handle_media(bytes, MediaType::Video).await
+                }
             }
         }
     }

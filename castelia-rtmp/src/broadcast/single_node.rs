@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use bytes::Bytes;
 use tokio::sync::broadcast::{self, Receiver, Sender};
+use tracing::{debug, error, info};
 
 use crate::broadcast::{
     BroadcastStreamer, Broadcaster, BroadcasterReceiver, MediaType, ReceiveError, SendError,
@@ -13,13 +14,17 @@ pub struct SingleNodeBroadcaster {
     streams: HashMap<String, Stream>,
 }
 
-struct NaiveReceiver {
-    data: Bytes,
+struct StreamReceiver {
+    metadata: Bytes,
+    audio_header: Bytes,
+    video_header: Bytes,
     receiver: Receiver<(MediaType, Bytes)>,
 }
 
 struct Stream {
     metadata: Option<Bytes>,
+    audio_header: Option<Bytes>,
+    video_header: Option<Bytes>,
     sender: Sender<(MediaType, Bytes)>,
 }
 
@@ -38,9 +43,39 @@ impl Broadcaster for SingleNodeBroadcaster {
         let stream = Stream {
             metadata: None,
             sender: tx.clone(),
+            audio_header: None,
+            video_header: None,
         };
         self.streams.insert(stream_key.to_owned(), stream);
         Box::new(tx)
+    }
+
+    async fn set_stream_video_header(
+        &mut self,
+        stream_key: &str,
+        header: Bytes,
+    ) -> Result<(), SetMetadataError> {
+        let Some(stream) = self.streams.get_mut(stream_key) else {
+            return Err(SetMetadataError::StreamNotFound);
+        };
+
+        stream.video_header = Some(header);
+        debug!("Video header set");
+        Ok(())
+    }
+
+    async fn set_stream_audio_header(
+        &mut self,
+        stream_key: &str,
+        header: Bytes,
+    ) -> Result<(), SetMetadataError> {
+        let Some(stream) = self.streams.get_mut(stream_key) else {
+            return Err(SetMetadataError::StreamNotFound);
+        };
+
+        stream.audio_header = Some(header);
+        debug!("Audio header set");
+        Ok(())
     }
 
     async fn set_stream_metadata(
@@ -67,19 +102,28 @@ impl Broadcaster for SingleNodeBroadcaster {
         let stream = self
             .streams
             .get(channel_name)
-            .ok_or(SubscribeError::NotFound(format!(
-                "Channel with name {channel_name} not found"
-            )))?;
+            .ok_or(SubscribeError::NotFound)?;
 
         let Some(metadata) = &stream.metadata else {
-            return Err(SubscribeError::NotFound(format!(
-                "Channel with name {channel_name} not found"
-            )));
+            error!("Stream metadata not found");
+            return Err(SubscribeError::NotFound);
         };
 
-        Ok(Box::new(NaiveReceiver {
-            data: metadata.clone(),
+        let Some(video_header) = &stream.video_header else {
+            error!("Stream video header not found");
+            return Err(SubscribeError::NotFound);
+        };
+
+        let Some(audio_header) = &stream.audio_header else {
+            error!("Stream audio header not found");
+            return Err(SubscribeError::NotFound);
+        };
+
+        Ok(Box::new(StreamReceiver {
+            metadata: metadata.clone(),
             receiver: stream.sender.subscribe(),
+            video_header: video_header.clone(),
+            audio_header: audio_header.clone(),
         }))
     }
 }
@@ -96,9 +140,17 @@ impl BroadcastStreamer for Sender<(MediaType, Bytes)> {
 }
 
 #[async_trait]
-impl BroadcasterReceiver for NaiveReceiver {
+impl BroadcasterReceiver for StreamReceiver {
+    async fn receive_video_header(&mut self) -> Result<Bytes, ReceiveError> {
+        Ok(self.video_header.clone())
+    }
+
+    async fn receive_audio_header(&mut self) -> Result<Bytes, ReceiveError> {
+        Ok(self.audio_header.clone())
+    }
+
     async fn receive_metadata(&mut self) -> Result<Bytes, ReceiveError> {
-        Ok(self.data.clone())
+        Ok(self.metadata.clone())
     }
 
     async fn receive_data(&mut self) -> Result<(MediaType, Bytes), ReceiveError> {

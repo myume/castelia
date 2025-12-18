@@ -142,7 +142,6 @@ impl RTMPConnection {
             {
                 match Message::parse_message(&message_bytes, message_type_id) {
                     Ok(msg) => {
-                        debug!("message received");
                         trace!("received message: {:#?}", msg);
                         if let Err(e) = self
                             .message_router

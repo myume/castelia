@@ -14,7 +14,7 @@ impl Display for SendError {
 }
 
 pub enum SubscribeError {
-    NotFound(String),
+    NotFound,
 }
 
 pub enum ReceiveError {
@@ -35,6 +35,18 @@ pub enum MediaType {
 #[async_trait]
 pub trait Broadcaster: Send + Sync {
     async fn create_stream(&mut self, stream_key: &str) -> Box<dyn BroadcastStreamer>;
+
+    async fn set_stream_video_header(
+        &mut self,
+        stream_key: &str,
+        header: Bytes,
+    ) -> Result<(), SetMetadataError>;
+
+    async fn set_stream_audio_header(
+        &mut self,
+        stream_key: &str,
+        header: Bytes,
+    ) -> Result<(), SetMetadataError>;
 
     async fn set_stream_metadata(
         &mut self,
@@ -57,6 +69,10 @@ pub trait BroadcastStreamer: Send + Sync {
 
 #[async_trait]
 pub trait BroadcasterReceiver: Send + Sync {
+    async fn receive_video_header(&mut self) -> Result<Bytes, ReceiveError>;
+
+    async fn receive_audio_header(&mut self) -> Result<Bytes, ReceiveError>;
+
     async fn receive_metadata(&mut self) -> Result<Bytes, ReceiveError>;
 
     async fn receive_data(&mut self) -> Result<(MediaType, Bytes), ReceiveError>;
