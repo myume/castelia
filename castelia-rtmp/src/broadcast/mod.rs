@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use thiserror::Error;
 
 pub mod single_node;
 
@@ -17,8 +18,11 @@ pub enum SubscribeError {
     NotFound,
 }
 
+#[derive(Error, Debug)]
 pub enum ReceiveError {
+    #[error("Stream is closed")]
     StreamClosed,
+    #[error("Failure to receive message: {0}")]
     Other(String),
 }
 
@@ -54,7 +58,7 @@ pub trait Broadcaster: Send + Sync {
         metadata: Bytes,
     ) -> Result<(), SetMetadataError>;
 
-    async fn delete_stream(&self, stream_key: &str);
+    async fn delete_stream(&mut self, stream_key: &str);
 
     async fn subscribe(
         &self,

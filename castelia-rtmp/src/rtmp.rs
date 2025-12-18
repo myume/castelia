@@ -124,7 +124,8 @@ impl RTMPConnection {
         );
 
         let mut reader = BufReader::with_capacity(65536, read_half);
-        loop {
+        let mut should_exit = false;
+        while !should_exit {
             let max_chunk_size = self
                 .connection_state
                 .lock()
@@ -151,6 +152,7 @@ impl RTMPConnection {
                                 sender.clone(),
                                 self.connection_state.clone(),
                                 self.broadcaster.clone(),
+                                &mut should_exit,
                             )
                             .await
                         {
@@ -171,6 +173,10 @@ impl RTMPConnection {
                 };
             }
         }
+
+        info!("Closing connection");
+
+        Ok(())
     }
 
     #[instrument(skip_all)]

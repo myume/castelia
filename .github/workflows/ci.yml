@@ -27,7 +27,6 @@ jobs:
       - run: cargo test --all-features
 
   lint:
-      if: false # skip for now
       name: Lint
       runs-on: ubuntu-24.04
       steps:

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use bytes::Bytes;
 use tokio::sync::broadcast::{self, Receiver, Sender};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use crate::broadcast::{
     BroadcastStreamer, Broadcaster, BroadcasterReceiver, MediaType, ReceiveError, SendError,
@@ -91,8 +91,8 @@ impl Broadcaster for SingleNodeBroadcaster {
         Ok(())
     }
 
-    async fn delete_stream(&self, stream_key: &str) {
-        todo!()
+    async fn delete_stream(&mut self, stream_key: &str) {
+        self.streams.remove(stream_key);
     }
 
     async fn subscribe(

@@ -63,9 +63,10 @@ impl NetConnection {
 
     pub async fn handle_user_control_message(
         &mut self,
-        message: UserControlMessage,
-        send_queue: Sender<SendQueueMessage>,
+        _message: UserControlMessage,
+        _send_queue: Sender<SendQueueMessage>,
     ) {
+        // todo: handle user control messages
     }
 
     async fn handle_connect(
@@ -164,6 +165,7 @@ impl NetConnection {
         send_queue: Sender<SendQueueMessage>,
         streams: &mut MessageStream,
         connection_state: Arc<Mutex<RTMPConnectionState>>,
+        should_exit: &mut bool,
     ) -> Result<(), HandleError> {
         match command.command_type {
             super::command::NetConnectionCommandType::Connect => {
@@ -172,7 +174,9 @@ impl NetConnection {
             super::command::NetConnectionCommandType::Call(procedure) => {
                 return Err(HandleError::UnsupportedCommand(procedure.to_owned()));
             }
-            super::command::NetConnectionCommandType::Close => todo!(),
+            super::command::NetConnectionCommandType::Close => {
+                *should_exit = true;
+            }
             super::command::NetConnectionCommandType::CreateStream => {
                 self.handle_create_stream(sender_stream_id, command, streams, send_queue)
                     .await?;

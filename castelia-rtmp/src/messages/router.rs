@@ -82,6 +82,7 @@ impl MessageRouter {
         send_queue: Sender<SendQueueMessage>,
         connection_state: Arc<Mutex<RTMPConnectionState>>,
         broadcaster: Broadcasts,
+        should_exit: &mut bool,
     ) -> Result<(), RouteError> {
         match message {
             Message::Protocol(protocol_control_message) => {
@@ -106,7 +107,11 @@ impl MessageRouter {
                 if let CommandMessage::NetStreamCommand { ref command, .. } = command_message
                     && let NetStreamCommand::DeleteStream { stream_id } = command
                 {
-                    if self.message_streams.delete_stream(stream_id).is_none() {
+                    if let Some(stream) = self.message_streams.delete_stream(stream_id) {
+                        if let Some(stream_key) = stream.stream_key {
+                            broadcaster.lock().await.delete_stream(&stream_key).await;
+                        }
+                    } else {
                         return Err(RouteError::MissingNetStream(*stream_id));
                     }
                     return Ok(());
@@ -124,6 +129,7 @@ impl MessageRouter {
                             send_queue,
                             &mut self.message_streams,
                             connection_state,
+                            should_exit,
                         )
                         .await?;
                 } else {
