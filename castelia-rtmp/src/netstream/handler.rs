@@ -19,6 +19,10 @@ pub enum HandleError {
     UnsupportedCommand(String),
     #[error("Only live broadcasts are supported")]
     NoneLiveBroadcast,
+    #[error("Broadcast could not be found")]
+    BroadcastNotFound,
+    #[error("Failed to send message")]
+    SendError(String),
 }
 
 impl NetStream {
@@ -34,6 +38,7 @@ impl NetStream {
         }
 
         self.stream = Some(broadcaster.lock().await.create_stream(stream_key).await);
+        self.stream_key = Some(stream_key.to_owned());
         self.state = NetStreamState::Publishing;
         trace!("Stream created");
 
@@ -113,6 +118,41 @@ impl NetStream {
         Ok(())
     }
 
+    async fn handle_metadata<'a>(
+        &self,
+        metadata: Vec<AMF0Value<'a>>,
+        broadcaster: Broadcasts,
+    ) -> Result<(), HandleError> {
+        let Some(stream_key) = &self.stream_key else {
+            return Err(HandleError::BroadcastNotFound);
+        };
+        if broadcaster
+            .lock()
+            .await
+            .set_stream_metadata(
+                stream_key,
+                metadata.iter().flat_map(|val| val.serialize()).collect(),
+            )
+            .await
+            .is_err()
+        {
+            error!("failed to set metadata for stream.");
+            return Err(HandleError::BroadcastNotFound);
+        }
+        Ok(())
+    }
+
+    async fn handle_media(&mut self, bytes: Bytes) -> Result<(), HandleError> {
+        if let Some(stream) = &mut self.stream {
+            stream
+                .send_data(bytes)
+                .await
+                .map_err(|e| HandleError::SendError(e.to_string()))
+        } else {
+            Err(HandleError::BroadcastNotFound)
+        }
+    }
+
     pub async fn handle_message<'a>(
         &mut self,
         message: CommandMessage<'a>,
@@ -131,9 +171,12 @@ impl NetStream {
                 self.handle_netstream_command(command, transaction_id, send_queue, broadcaster)
                     .await
             }
-            CommandMessage::Data(amf0_values) => todo!(),
-            CommandMessage::Audio(bytes) => todo!(),
-            CommandMessage::Video(bytes) => todo!(),
+            CommandMessage::Data(amf0_values) => {
+                self.handle_metadata(amf0_values, broadcaster).await
+            }
+            CommandMessage::Audio(bytes) => self.handle_media(bytes).await,
+
+            CommandMessage::Video(bytes) => self.handle_media(bytes).await,
         }
     }
 }

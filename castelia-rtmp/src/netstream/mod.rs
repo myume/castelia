@@ -14,6 +14,7 @@ pub struct NetStream {
     id: u32,
     state: NetStreamState,
     stream: Option<Box<dyn BroadcastStreamer + Send>>,
+    stream_key: Option<String>,
 }
 
 impl NetStream {
@@ -22,6 +23,7 @@ impl NetStream {
             id,
             state: NetStreamState::Active,
             stream: None,
+            stream_key: None,
         }
     }
 }

@@ -5,7 +5,8 @@ use bytes::Bytes;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 
 use crate::broadcast::{
-    BroadcastStreamer, Broadcaster, BroadcasterReceiver, ReceiveError, SendError, SubscribeError,
+    BroadcastStreamer, Broadcaster, BroadcasterReceiver, ReceiveError, SendError, SetMetadataError,
+    SubscribeError,
 };
 
 pub struct SingleNodeBroadcaster {
@@ -18,7 +19,7 @@ struct NaiveReceiver {
 }
 
 struct Stream {
-    data: Option<Bytes>,
+    metadata: Option<Bytes>,
     sender: Sender<Bytes>,
 }
 
@@ -35,11 +36,24 @@ impl Broadcaster for SingleNodeBroadcaster {
     async fn create_stream(&mut self, stream_key: &str) -> Box<dyn BroadcastStreamer> {
         let (tx, _) = broadcast::channel(100);
         let stream = Stream {
-            data: None,
+            metadata: None,
             sender: tx.clone(),
         };
         self.streams.insert(stream_key.to_owned(), stream);
         Box::new(tx)
+    }
+
+    async fn set_stream_metadata(
+        &mut self,
+        stream_key: &str,
+        metadata: Bytes,
+    ) -> Result<(), SetMetadataError> {
+        let Some(stream) = self.streams.get_mut(stream_key) else {
+            return Err(SetMetadataError::StreamNotFound);
+        };
+
+        stream.metadata = Some(metadata);
+        Ok(())
     }
 
     async fn delete_stream(&self, stream_key: &str) {
@@ -57,7 +71,7 @@ impl Broadcaster for SingleNodeBroadcaster {
                 "Channel with name {channel_name} not found"
             )))?;
 
-        let Some(metadata) = &stream.data else {
+        let Some(metadata) = &stream.metadata else {
             return Err(SubscribeError::NotFound(format!(
                 "Channel with name {channel_name} not found"
             )));
@@ -72,9 +86,11 @@ impl Broadcaster for SingleNodeBroadcaster {
 
 #[async_trait]
 impl BroadcastStreamer for Sender<Bytes> {
-    async fn send(&self, data: Bytes) -> Result<(), SendError> {
-        self.send(data)
-            .map_err(|e| SendError(format!("Failed to send data to stream: {e}")))?;
+    async fn send_data(&mut self, data: Bytes) -> Result<(), SendError> {
+        if self.receiver_count() > 0 {
+            self.send(data)
+                .map_err(|e| SendError(format!("Failed to send data to stream: {e}")))?;
+        }
         Ok(())
     }
 }
