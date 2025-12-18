@@ -5,8 +5,8 @@ use bytes::Bytes;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 
 use crate::broadcast::{
-    BroadcastStreamer, Broadcaster, BroadcasterReceiver, ReceiveError, SendError, SetMetadataError,
-    SubscribeError,
+    BroadcastStreamer, Broadcaster, BroadcasterReceiver, MediaType, ReceiveError, SendError,
+    SetMetadataError, SubscribeError,
 };
 
 pub struct SingleNodeBroadcaster {
@@ -15,12 +15,12 @@ pub struct SingleNodeBroadcaster {
 
 struct NaiveReceiver {
     data: Bytes,
-    receiver: Receiver<Bytes>,
+    receiver: Receiver<(MediaType, Bytes)>,
 }
 
 struct Stream {
     metadata: Option<Bytes>,
-    sender: Sender<Bytes>,
+    sender: Sender<(MediaType, Bytes)>,
 }
 
 impl SingleNodeBroadcaster {
@@ -85,10 +85,10 @@ impl Broadcaster for SingleNodeBroadcaster {
 }
 
 #[async_trait]
-impl BroadcastStreamer for Sender<Bytes> {
-    async fn send_data(&mut self, data: Bytes) -> Result<(), SendError> {
+impl BroadcastStreamer for Sender<(MediaType, Bytes)> {
+    async fn send_data(&mut self, data: Bytes, media_type: MediaType) -> Result<(), SendError> {
         if self.receiver_count() > 0 {
-            self.send(data)
+            self.send((media_type, data))
                 .map_err(|e| SendError(format!("Failed to send data to stream: {e}")))?;
         }
         Ok(())
@@ -101,7 +101,7 @@ impl BroadcasterReceiver for NaiveReceiver {
         Ok(self.data.clone())
     }
 
-    async fn receive_data(&mut self) -> Result<Bytes, ReceiveError> {
+    async fn receive_data(&mut self) -> Result<(MediaType, Bytes), ReceiveError> {
         Ok(self.receiver.recv().await.map_err(|err| match err {
             broadcast::error::RecvError::Closed => ReceiveError::StreamClosed,
             broadcast::error::RecvError::Lagged(_) => {

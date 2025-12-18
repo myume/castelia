@@ -3,12 +3,19 @@ use std::collections::HashMap;
 use bytes::Bytes;
 use thiserror::Error;
 use tokio::sync::mpsc::Sender;
-use tracing::{error, trace};
+use tracing::{debug, error, info, trace};
 
 use crate::{
     amf::AMF0Value,
+    broadcast::MediaType,
     chunks::header::FullMessageHeader,
-    messages::command::{CommandMessage, command_message_type::COMMAND_AMF0},
+    messages::{
+        Message,
+        command::{
+            CommandMessage,
+            command_message_type::{self, COMMAND_AMF0},
+        },
+    },
     netstream::{NetStream, NetStreamState, command::NetStreamCommand},
     rtmp::{Broadcasts, SendQueueMessage},
 };
@@ -71,21 +78,88 @@ impl NetStream {
         Ok(())
     }
 
+    async fn handle_play(
+        &mut self,
+        channel_name: &str,
+        broadcaster: Broadcasts,
+        send_queue: Sender<SendQueueMessage>,
+    ) -> Result<(), HandleError> {
+        let mut receiver = broadcaster
+            .lock()
+            .await
+            .subscribe(channel_name)
+            .await
+            .map_err(|_| HandleError::BroadcastNotFound)?;
+
+        let message_stream_id = self.id;
+        let channel_name = channel_name.to_owned();
+        tokio::spawn(async move {
+            info!("subscribed to stream {}", channel_name);
+            let Ok(metadata) = receiver.receive_metadata().await else {
+                return error!("Failed to get metadata for stream");
+            };
+            if let Err(e) = send_queue
+                .send((
+                    FullMessageHeader {
+                        timestamp: 0,
+                        extended_timestamp: None,
+                        message_length: metadata.len() as u32,
+                        message_type_id: command_message_type::DATA_AMF0,
+                        message_stream_id,
+                    },
+                    metadata,
+                ))
+                .await
+            {
+                error!("Failed to send metadata for stream {e}");
+            }
+
+            while let Ok((media_type, data)) = receiver.receive_data().await {
+                debug!("stream data received");
+                let message = match media_type {
+                    MediaType::Video => CommandMessage::Video(data),
+                    MediaType::Audio => CommandMessage::Audio(data),
+                };
+                let bytes = Message::Command(message).serialize();
+                if let Err(e) = send_queue
+                    .send((
+                        FullMessageHeader {
+                            timestamp: 0,
+                            extended_timestamp: None,
+                            message_length: bytes.len() as u32,
+                            message_type_id: match media_type {
+                                MediaType::Video => command_message_type::VIDEO,
+                                MediaType::Audio => command_message_type::AUDIO,
+                            },
+                            message_stream_id,
+                        },
+                        bytes,
+                    ))
+                    .await
+                {
+                    error!("Failed to send message {e}");
+                }
+            }
+        });
+        Ok(())
+    }
+
     async fn handle_netstream_command<'a>(
         &mut self,
         command: NetStreamCommand<'a>,
-        transaction_id: f64,
+        _transaction_id: f64,
         send_queue: Sender<SendQueueMessage>,
         broadcaster: Broadcasts,
     ) -> Result<(), HandleError> {
         match command {
-            NetStreamCommand::Play {
-                stream_name,
-                start,
-                duration,
-                reset,
-            } => todo!(),
-            NetStreamCommand::Play2 { parameters } => todo!(),
+            NetStreamCommand::Play { stream_name, .. } => {
+                self.handle_play(stream_name, broadcaster, send_queue)
+                    .await?
+            }
+            NetStreamCommand::Play2 { .. } => {
+                // only allow play1 for now
+                return Err(HandleError::UnsupportedCommand("play2".into()));
+            }
             NetStreamCommand::DeleteStream { .. } => {
                 // delete stream command should be handled by message router.
                 // the alternate approach is to mark the stream with a tombstone and clean up all
@@ -97,8 +171,9 @@ impl NetStream {
             NetStreamCommand::CloseStream { .. } => {
                 self.state = NetStreamState::Closed;
             }
-            NetStreamCommand::ReceiveAudio { should_receive } => todo!(),
-            NetStreamCommand::ReceiveVideo { should_receive } => todo!(),
+            // always receive video and audio for now
+            NetStreamCommand::ReceiveAudio { .. } => {}
+            NetStreamCommand::ReceiveVideo { .. } => {}
             NetStreamCommand::Publish {
                 publishing_name,
                 publishing_type,
@@ -109,10 +184,10 @@ impl NetStream {
             NetStreamCommand::Seek { .. } => {
                 return Err(HandleError::UnsupportedCommand("seek".to_owned()));
             }
-            NetStreamCommand::Pause {
-                is_paused,
-                milliseconds,
-            } => todo!(),
+            NetStreamCommand::Pause { .. } => {
+                // supports only live streaming so don't handle this for now
+                return Err(HandleError::UnsupportedCommand("pause".into()));
+            }
         }
 
         Ok(())
@@ -142,10 +217,14 @@ impl NetStream {
         Ok(())
     }
 
-    async fn handle_media(&mut self, bytes: Bytes) -> Result<(), HandleError> {
+    async fn handle_media(
+        &mut self,
+        bytes: Bytes,
+        media_type: MediaType,
+    ) -> Result<(), HandleError> {
         if let Some(stream) = &mut self.stream {
             stream
-                .send_data(bytes)
+                .send_data(bytes, media_type)
                 .await
                 .map_err(|e| HandleError::SendError(e.to_string()))
         } else {
@@ -177,12 +256,12 @@ impl NetStream {
             }
             CommandMessage::Audio(bytes) => {
                 trace!("sending audio data");
-                self.handle_media(bytes).await
+                self.handle_media(bytes, MediaType::Audio).await
             }
 
             CommandMessage::Video(bytes) => {
                 trace!("sending video data");
-                self.handle_media(bytes).await
+                self.handle_media(bytes, MediaType::Video).await
             }
         }
     }
