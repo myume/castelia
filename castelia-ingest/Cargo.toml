@@ -1,0 +1,15 @@
+[package]
+name = "castelia-ingest"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+castelia-rtmp = { path = "../castelia-rtmp", version = "0.1.0" }
+
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true
