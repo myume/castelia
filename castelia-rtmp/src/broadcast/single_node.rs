@@ -72,7 +72,7 @@ impl Broadcaster for SingleNodeBroadcaster {
 
 #[async_trait]
 impl BroadcastStreamer for Sender<Bytes> {
-    async fn send_data(&self, data: Bytes) -> Result<(), SendError> {
+    async fn send(&self, data: Bytes) -> Result<(), SendError> {
         self.send(data)
             .map_err(|e| SendError(format!("Failed to send data to stream: {e}")))?;
         Ok(())

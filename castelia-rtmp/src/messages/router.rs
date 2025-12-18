@@ -53,7 +53,7 @@ impl MessageStream {
         // + 1 to skip message stream 0 (control stream)
         let message_stream_id = self.message_streams.len() as u32 + 1;
         self.message_streams
-            .insert(message_stream_id, NetStream::new());
+            .insert(message_stream_id, NetStream::new(message_stream_id));
         message_stream_id
     }
 

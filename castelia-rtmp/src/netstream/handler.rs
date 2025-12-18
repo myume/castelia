@@ -55,7 +55,7 @@ impl NetStream {
                     extended_timestamp: None,
                     message_length: message.len() as u32,
                     message_type_id: COMMAND_AMF0,
-                    message_stream_id: 1,
+                    message_stream_id: self.id,
                 },
                 Bytes::from(message),
             ))

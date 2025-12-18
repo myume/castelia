@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 
-pub mod naive;
+pub mod single_node;
 
 pub struct SendError(String);
 
@@ -28,7 +28,7 @@ pub trait Broadcaster: Send + Sync {
 
 #[async_trait]
 pub trait BroadcastStreamer: Send + Sync {
-    async fn send_data(&self, data: Bytes) -> Result<(), SendError>;
+    async fn send(&self, data: Bytes) -> Result<(), SendError>;
 }
 
 #[async_trait]

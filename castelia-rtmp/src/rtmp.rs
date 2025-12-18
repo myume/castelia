@@ -13,7 +13,7 @@ use tokio::{
 use tracing::{Instrument, debug, error, info, instrument, trace};
 
 use crate::{
-    broadcast::{Broadcaster, naive::SingleNodeBroadcaster},
+    broadcast::{Broadcaster, single_node::SingleNodeBroadcaster},
     chunks::{Chunk, SERVER_CHUNK_SIZE, chunk_handler::ChunkHandler, header::FullMessageHeader},
     handshake::handshake,
     messages::{Message, protocol_control::PeerBandwidth, router::MessageRouter},
