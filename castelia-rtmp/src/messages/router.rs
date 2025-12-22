@@ -8,6 +8,7 @@ use tokio::sync::mpsc::Sender;
 use tracing::{info, trace};
 
 use crate::{
+    chunks::header::MessageHeader,
     messages::{Message, command::CommandMessage},
     netconnection::{self, NetConnection},
     netstream::{self, NetStream, command::NetStreamCommand},
@@ -75,6 +76,7 @@ impl MessageRouter {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn route_message<'a>(
         &mut self,
         message: Message<'a>,
@@ -83,6 +85,7 @@ impl MessageRouter {
         connection_state: Arc<Mutex<RTMPConnectionState>>,
         broadcaster: Broadcasts,
         should_exit: &mut bool,
+        message_header: MessageHeader,
     ) -> Result<(), RouteError> {
         match message {
             Message::Protocol(protocol_control_message) => {
@@ -141,7 +144,7 @@ impl MessageRouter {
                     };
 
                     stream
-                        .handle_message(command_message, send_queue, broadcaster)
+                        .handle_message(command_message, send_queue, broadcaster, message_header)
                         .await?;
                 }
             }

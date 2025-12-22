@@ -138,7 +138,7 @@ impl RTMPConnection {
                 .await?;
             trace!("finished reading chunk");
 
-            if let Some((message_bytes, message_type_id, message_stream_id)) =
+            if let Some((message_bytes, message_type_id, message_stream_id, recent_header)) =
                 self.chunk_handler.receive_chunk(chunk)
             {
                 match Message::parse_message(&message_bytes, message_type_id) {
@@ -153,6 +153,7 @@ impl RTMPConnection {
                                 self.connection_state.clone(),
                                 self.broadcaster.clone(),
                                 &mut should_exit,
+                                recent_header,
                             )
                             .await
                         {

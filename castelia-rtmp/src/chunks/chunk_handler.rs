@@ -10,7 +10,7 @@ use tracing::{debug, error, trace, warn};
 
 use crate::chunks::{
     CSId, Chunk,
-    header::{ChunkHeader, ParseChunkHeaderError},
+    header::{ChunkHeader, MessageHeader, ParseChunkHeaderError},
 };
 
 #[derive(Error, Debug)]
@@ -56,6 +56,7 @@ struct PartialMessage {
     length: u32,
     message_type: u8,
     message_stream_id: u32,
+    most_recent_header: MessageHeader,
     bytes: BytesMut,
 }
 
@@ -99,7 +100,7 @@ impl ChunkHandler {
         })
     }
 
-    pub fn receive_chunk(&mut self, chunk: Chunk) -> Option<(Bytes, u8, u32)> {
+    pub fn receive_chunk(&mut self, chunk: Chunk) -> Option<(Bytes, u8, u32, MessageHeader)> {
         let cs_id = chunk.header.chunk_stream_id();
         if let Some(partial) = self.chunk_streams.get_mut(&cs_id) {
             if let Some(message_length) = chunk.header.get_message_length() {
@@ -111,6 +112,7 @@ impl ChunkHandler {
             if let Some(message_stream_id) = chunk.header.get_message_stream_id() {
                 partial.message_stream_id = message_stream_id;
             }
+            partial.most_recent_header = chunk.header.message_header;
             partial.bytes.extend(chunk.payload);
         } else if let Some(length) = chunk.header.get_message_length()
             && let Some(message_type) = chunk.header.get_message_type()
@@ -122,6 +124,7 @@ impl ChunkHandler {
                     length,
                     message_type,
                     message_stream_id,
+                    most_recent_header: chunk.header.message_header,
                     bytes: chunk.payload.into(),
                 },
             );
@@ -137,6 +140,7 @@ impl ChunkHandler {
                 partial.bytes.clone().into(),
                 partial.message_type,
                 partial.message_stream_id,
+                partial.most_recent_header.clone(),
             );
             partial.bytes.clear();
             Some(message)

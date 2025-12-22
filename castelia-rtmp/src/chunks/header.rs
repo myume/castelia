@@ -9,8 +9,8 @@ use crate::chunks::CSId;
 
 #[derive(Debug, PartialEq)]
 pub struct ChunkHeader {
-    basic_header: BasicHeader,
-    message_header: MessageHeader,
+    pub basic_header: BasicHeader,
+    pub message_header: MessageHeader,
     extended_timestamp: Option<u32>,
 }
 
@@ -46,7 +46,7 @@ pub struct FullMessageHeader {
     pub message_stream_id: u32,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MessageHeader {
     Type0 {
         timestamp: u32,

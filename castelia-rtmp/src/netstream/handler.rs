@@ -11,7 +11,7 @@ use tracing::{debug, error, info, trace};
 use crate::{
     amf::AMF0Value,
     broadcast::MediaType,
-    chunks::header::FullMessageHeader,
+    chunks::header::{FullMessageHeader, MessageHeader},
     messages::{
         Message,
         command::{
@@ -156,7 +156,7 @@ impl NetStream {
                 return error!("Failed to send video header for stream {e}");
             }
 
-            while let Ok((media_type, data)) = receiver.receive_data().await {
+            while let Ok((media_type, header, data)) = receiver.receive_data().await {
                 debug!("stream data received");
                 let message = match media_type {
                     MediaType::Video => CommandMessage::Video(data),
@@ -316,11 +316,12 @@ impl NetStream {
         &mut self,
         bytes: Bytes,
         media_type: MediaType,
+        message_header: MessageHeader,
     ) -> Result<(), HandleError> {
         trace!("sending {media_type:?} data");
         if let Some(stream) = &mut self.stream {
             stream
-                .send_data(bytes, media_type)
+                .send_data(bytes, media_type, message_header)
                 .await
                 .map_err(|e| HandleError::SendError(e.to_string()))
         } else {
@@ -333,6 +334,7 @@ impl NetStream {
         message: CommandMessage<'a>,
         send_queue: Sender<SendQueueMessage>,
         broadcaster: Broadcasts,
+        message_header: MessageHeader,
     ) -> Result<(), HandleError> {
         match message {
             CommandMessage::NetConnection(_) => {
@@ -356,7 +358,8 @@ impl NetStream {
                     self.handle_media_header(bytes, MediaType::Audio, broadcaster)
                         .await
                 } else {
-                    self.handle_media(bytes, MediaType::Audio).await
+                    self.handle_media(bytes, MediaType::Audio, message_header)
+                        .await
                 }
             }
 
@@ -366,7 +369,8 @@ impl NetStream {
                     self.handle_media_header(bytes, MediaType::Video, broadcaster)
                         .await
                 } else {
-                    self.handle_media(bytes, MediaType::Video).await
+                    self.handle_media(bytes, MediaType::Video, message_header)
+                        .await
                 }
             }
         }
