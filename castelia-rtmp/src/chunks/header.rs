@@ -117,6 +117,23 @@ impl MessageHeader {
         bytes.into()
     }
 
+    pub fn get_timestamp(&self) -> Option<u32> {
+        match self {
+            MessageHeader::Type0 { timestamp, .. } => Some(*timestamp),
+            _ => None,
+        }
+    }
+
+    pub fn get_timestamp_delta(&self) -> Option<u32> {
+        match self {
+            MessageHeader::Type1 {
+                timestamp_delta, ..
+            } => Some(*timestamp_delta),
+            MessageHeader::Type2 { timestamp_delta } => Some(*timestamp_delta),
+            _ => None,
+        }
+    }
+
     pub fn get_type(&self) -> u8 {
         match self {
             MessageHeader::Type0 { .. } => 0,

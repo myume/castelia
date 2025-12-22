@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::collections::HashMap;
 
 use bytes::Bytes;
 use thiserror::Error;
@@ -156,22 +153,16 @@ impl NetStream {
                 return error!("Failed to send video header for stream {e}");
             }
 
+            let mut timestamp = 0;
             while let Ok((media_type, header, data)) = receiver.receive_data().await {
                 debug!("stream data received");
+                timestamp = header.get_timestamp().unwrap_or(timestamp);
+                timestamp += header.get_timestamp_delta().unwrap_or(0);
                 let message = match media_type {
                     MediaType::Video => CommandMessage::Video(data),
                     MediaType::Audio => CommandMessage::Audio(data),
                 };
                 let bytes = Message::Command(message).serialize();
-
-                // this timestamp is not entirely correct but it gets the playback working for now.
-                // TODO: use the actual timestamp given by the encoder/obs.
-                let Ok(timestamp) = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|val| val.as_millis() as u32)
-                else {
-                    return error!("unable to fetch timestamp");
-                };
 
                 if let Err(e) = send_queue
                     .send((
