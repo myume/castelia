@@ -5,9 +5,12 @@ use bytes::Bytes;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::{debug, error};
 
-use crate::broadcast::{
-    BroadcastStreamer, Broadcaster, BroadcasterReceiver, MediaType, ReceiveError, SendError,
-    SetMetadataError, SubscribeError,
+use crate::{
+    broadcast::{
+        BroadcastStreamer, Broadcaster, BroadcasterReceiver, MediaType, Payload, ReceiveError,
+        SendError, SetMetadataError, SubscribeError,
+    },
+    chunks::header::MessageHeader,
 };
 
 pub struct SingleNodeBroadcaster {
@@ -18,14 +21,14 @@ struct StreamReceiver {
     metadata: Bytes,
     audio_header: Bytes,
     video_header: Bytes,
-    receiver: Receiver<(MediaType, Bytes)>,
+    receiver: Receiver<Payload>,
 }
 
 struct Stream {
     metadata: Option<Bytes>,
     audio_header: Option<Bytes>,
     video_header: Option<Bytes>,
-    sender: Sender<(MediaType, Bytes)>,
+    sender: Sender<Payload>,
 }
 
 impl SingleNodeBroadcaster {
@@ -129,10 +132,15 @@ impl Broadcaster for SingleNodeBroadcaster {
 }
 
 #[async_trait]
-impl BroadcastStreamer for Sender<(MediaType, Bytes)> {
-    async fn send_data(&mut self, data: Bytes, media_type: MediaType) -> Result<(), SendError> {
+impl BroadcastStreamer for Sender<Payload> {
+    async fn send_data(
+        &mut self,
+        data: Bytes,
+        media_type: MediaType,
+        message_header: MessageHeader,
+    ) -> Result<(), SendError> {
         if self.receiver_count() > 0 {
-            self.send((media_type, data))
+            self.send((media_type, message_header, data))
                 .map_err(|e| SendError(format!("Failed to send data to stream: {e}")))?;
         }
         Ok(())
@@ -153,7 +161,7 @@ impl BroadcasterReceiver for StreamReceiver {
         Ok(self.metadata.clone())
     }
 
-    async fn receive_data(&mut self) -> Result<(MediaType, Bytes), ReceiveError> {
+    async fn receive_data(&mut self) -> Result<Payload, ReceiveError> {
         Ok(self.receiver.recv().await.map_err(|err| match err {
             broadcast::error::RecvError::Closed => ReceiveError::StreamClosed,
             broadcast::error::RecvError::Lagged(_) => {

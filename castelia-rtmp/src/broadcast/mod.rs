@@ -4,6 +4,8 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use thiserror::Error;
 
+use crate::chunks::header::MessageHeader;
+
 pub mod single_node;
 
 pub struct SendError(String);
@@ -13,6 +15,8 @@ impl Display for SendError {
         write!(f, "{}", self.0)
     }
 }
+
+type Payload = (MediaType, MessageHeader, Bytes);
 
 pub enum SubscribeError {
     NotFound,
@@ -68,7 +72,12 @@ pub trait Broadcaster: Send + Sync {
 
 #[async_trait]
 pub trait BroadcastStreamer: Send + Sync {
-    async fn send_data(&mut self, data: Bytes, media_type: MediaType) -> Result<(), SendError>;
+    async fn send_data(
+        &mut self,
+        data: Bytes,
+        media_type: MediaType,
+        message_header: MessageHeader,
+    ) -> Result<(), SendError>;
 }
 
 #[async_trait]
@@ -79,5 +88,5 @@ pub trait BroadcasterReceiver: Send + Sync {
 
     async fn receive_metadata(&mut self) -> Result<Bytes, ReceiveError>;
 
-    async fn receive_data(&mut self) -> Result<(MediaType, Bytes), ReceiveError>;
+    async fn receive_data(&mut self) -> Result<Payload, ReceiveError>;
 }
