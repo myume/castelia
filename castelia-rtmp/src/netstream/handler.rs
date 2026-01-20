@@ -363,7 +363,7 @@ impl NetStream {
                 self.audio_header_sent = true;
             }
         }
-        info!("{media_type:?} header sent");
+        debug!("{media_type:?} header sent");
 
         Ok(())
     }

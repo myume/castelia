@@ -115,7 +115,7 @@ impl MessageRouter {
                             broadcaster.lock().await.delete_stream(&stream_id).await;
                         }
 
-                        info!("deleted stream {}", stream.id);
+                        info!("Deleted netstream {}", stream.id);
                     } else {
                         return Err(RouteError::MissingNetStream(*stream_id));
                     }

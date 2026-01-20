@@ -10,13 +10,18 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::mpsc,
 };
-use tracing::{Instrument, debug, error, info, instrument, trace};
+use tracing::{Instrument, debug, error, info, instrument, trace, warn};
 
 use crate::{
     broadcast::{Broadcaster, authenticator::Authenticator, single_node::SingleNodeBroadcaster},
     chunks::{Chunk, SERVER_CHUNK_SIZE, chunk_handler::ChunkHandler, header::FullMessageHeader},
     handshake::handshake,
-    messages::{Message, protocol_control::PeerBandwidth, router::MessageRouter},
+    messages::{
+        Message,
+        protocol_control::PeerBandwidth,
+        router::{MessageRouter, RouteError},
+    },
+    netconnection::handler::HandleError,
 };
 
 pub(crate) type Broadcasts = Arc<tokio::sync::Mutex<Box<dyn Broadcaster>>>;
@@ -157,7 +162,14 @@ impl RTMPConnection {
                             )
                             .await
                         {
-                            error!("Failed to handle message - {e}");
+                            match e {
+                                RouteError::HandleNetconnectonError(
+                                    HandleError::UnsupportedCommand(command),
+                                ) => {
+                                    warn!("Unsupported Command: {command}")
+                                }
+                                _ => error!("{e}"),
+                            }
                         }
 
                         let abort_queue = &mut self
