@@ -111,8 +111,8 @@ impl MessageRouter {
                     && let NetStreamCommand::DeleteStream { stream_id } = command
                 {
                     if let Some(stream) = self.message_streams.delete_stream(stream_id) {
-                        if let Some(stream_key) = stream.stream_key {
-                            broadcaster.lock().await.delete_stream(&stream_key).await;
+                        if let Some(stream_id) = stream.stream_id {
+                            broadcaster.lock().await.delete_stream(&stream_id).await;
                         }
 
                         info!("deleted stream {}", stream.id);
