@@ -225,6 +225,31 @@ impl NetStream {
             }
 
             info!("Stream has finished");
+            let message = [
+                AMF0Value::String("onStatus"),
+                AMF0Value::Number(0.0),
+                AMF0Value::Null,
+                AMF0Value::Object(HashMap::from([
+                    ("level", AMF0Value::String("status")),
+                    ("code", AMF0Value::String("NetStream.Play.UnpublishNotify")),
+                ])),
+            ];
+            let message = message.map(|val| val.serialize()).concat();
+            if let Err(e) = send_queue
+                .send((
+                    FullMessageHeader {
+                        timestamp: 0,
+                        extended_timestamp: None,
+                        message_length: message.len() as u32,
+                        message_type_id: command_message_type::COMMAND_AMF0,
+                        message_stream_id,
+                    },
+                    Bytes::from(message),
+                ))
+                .await
+            {
+                error!("Failed to termination messages for stream {e}");
+            }
         });
         Ok(())
     }
