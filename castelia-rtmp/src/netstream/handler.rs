@@ -102,12 +102,35 @@ impl NetStream {
         broadcaster: Broadcasts,
         send_queue: Sender<SendQueueMessage>,
     ) -> Result<(), HandleError> {
-        let mut receiver = broadcaster
-            .lock()
-            .await
-            .subscribe(channel_name)
-            .await
-            .map_err(|_| HandleError::BroadcastNotFound)?;
+        let Ok(mut receiver) = broadcaster.lock().await.subscribe(channel_name).await else {
+            let message = [
+                AMF0Value::String("onStatus"),
+                AMF0Value::Number(0.0),
+                AMF0Value::Null,
+                AMF0Value::Object(HashMap::from([
+                    ("level", AMF0Value::String("error")),
+                    ("code", AMF0Value::String("NetStream.Play.StreamNotFound")),
+                ])),
+            ]
+            .map(|val| val.serialize())
+            .concat();
+            if let Err(e) = send_queue
+                .send((
+                    FullMessageHeader {
+                        timestamp: 0,
+                        extended_timestamp: None,
+                        message_length: message.len() as u32,
+                        message_type_id: COMMAND_AMF0,
+                        message_stream_id: self.id,
+                    },
+                    Bytes::from(message),
+                ))
+                .await
+            {
+                error!("Failed to send message: {e}");
+            };
+            return Err(HandleError::BroadcastNotFound);
+        };
 
         let message_stream_id = self.id;
         let channel_name = channel_name.to_owned();
