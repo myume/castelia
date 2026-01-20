@@ -19,7 +19,7 @@ use crate::{
     messages::{Message, protocol_control::PeerBandwidth, router::MessageRouter},
 };
 
-pub(crate) type Broadcasts = Arc<tokio::sync::Mutex<Box<dyn Broadcaster + Send + Sync>>>;
+pub(crate) type Broadcasts = Arc<tokio::sync::Mutex<Box<dyn Broadcaster>>>;
 
 pub struct RTMPServer {
     listener: TcpListener,
