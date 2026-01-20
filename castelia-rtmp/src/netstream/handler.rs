@@ -78,7 +78,7 @@ impl NetStream {
         };
         let message = message.map(|val| val.serialize()).concat();
 
-        if let Err(e) = send_queue
+        if send_queue
             .send((
                 FullMessageHeader {
                     timestamp: 0,
@@ -90,8 +90,9 @@ impl NetStream {
                 Bytes::from(message),
             ))
             .await
+            .is_err()
         {
-            error!("Failed to send message: {e}");
+            info!("Send stream is closed, terminating stream");
         };
         Ok(())
     }
@@ -139,8 +140,17 @@ impl NetStream {
             let Ok(metadata) = receiver.receive_metadata().await else {
                 return error!("Failed to get metadata for stream");
             };
-            if let Err(e) = send_queue
-                .send((
+
+            let Ok(audio_header) = receiver.receive_audio_header().await else {
+                return error!("Failed to get audio header for stream");
+            };
+
+            let Ok(video_header) = receiver.receive_video_header().await else {
+                return error!("Failed to get video header for stream");
+            };
+
+            let messages = [
+                (
                     FullMessageHeader {
                         timestamp: 0,
                         extended_timestamp: None,
@@ -149,17 +159,8 @@ impl NetStream {
                         message_stream_id,
                     },
                     metadata,
-                ))
-                .await
-            {
-                return error!("Failed to send metadata for stream {e}");
-            }
-
-            let Ok(audio_header) = receiver.receive_audio_header().await else {
-                return error!("Failed to get audio header for stream");
-            };
-            if let Err(e) = send_queue
-                .send((
+                ),
+                (
                     FullMessageHeader {
                         timestamp: 0,
                         extended_timestamp: None,
@@ -168,17 +169,8 @@ impl NetStream {
                         message_stream_id,
                     },
                     audio_header,
-                ))
-                .await
-            {
-                return error!("Failed to send audio_header for stream {e}");
-            }
-
-            let Ok(video_header) = receiver.receive_video_header().await else {
-                return error!("Failed to get video header for stream");
-            };
-            if let Err(e) = send_queue
-                .send((
+                ),
+                (
                     FullMessageHeader {
                         timestamp: 0,
                         extended_timestamp: None,
@@ -187,10 +179,12 @@ impl NetStream {
                         message_stream_id,
                     },
                     video_header,
-                ))
-                .await
-            {
-                return error!("Failed to send video header for stream {e}");
+                ),
+            ];
+            for message in messages {
+                if send_queue.send(message).await.is_err() {
+                    return info!("Send stream is closed, terminating client");
+                }
             }
 
             let mut timestamp = 0;
@@ -204,7 +198,7 @@ impl NetStream {
                 };
                 let bytes = Message::Command(message).serialize();
 
-                if let Err(e) = send_queue
+                if send_queue
                     .send((
                         FullMessageHeader {
                             timestamp,
@@ -219,8 +213,9 @@ impl NetStream {
                         bytes,
                     ))
                     .await
+                    .is_err()
                 {
-                    return error!("Failed to send message: {e}");
+                    return info!("Send stream is closed, terminating client");
                 }
             }
 
@@ -235,7 +230,7 @@ impl NetStream {
                 ])),
             ];
             let message = message.map(|val| val.serialize()).concat();
-            if let Err(e) = send_queue
+            if send_queue
                 .send((
                     FullMessageHeader {
                         timestamp: 0,
@@ -247,8 +242,9 @@ impl NetStream {
                     Bytes::from(message),
                 ))
                 .await
+                .is_err()
             {
-                error!("Failed to termination messages for stream {e}");
+                info!("Send stream is closed, terminating client");
             }
         });
         Ok(())

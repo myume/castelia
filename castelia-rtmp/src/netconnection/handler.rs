@@ -118,7 +118,7 @@ impl NetConnection {
             ))
             .await?;
 
-        info!("connection established");
+        info!("Connection established");
 
         Ok(())
     }
