@@ -14,7 +14,7 @@ pub struct NetStream {
     pub id: u32,
     state: NetStreamState,
     stream: Option<Box<dyn BroadcastStreamer + Send>>,
-    pub stream_key: Option<String>,
+    pub stream_id: Option<String>,
     audio_header_sent: bool,
     video_header_sent: bool,
 }
@@ -25,7 +25,7 @@ impl NetStream {
             id,
             state: NetStreamState::Active,
             stream: None,
-            stream_key: None,
+            stream_id: None,
             audio_header_sent: false,
             video_header_sent: false,
         }

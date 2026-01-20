@@ -4,8 +4,12 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use thiserror::Error;
 
-use crate::chunks::header::MessageHeader;
+use crate::{
+    broadcast::authenticator::{AuthenticateError, Authenticator},
+    chunks::header::MessageHeader,
+};
 
+pub mod authenticator;
 pub mod single_node;
 
 pub struct SendError(String);
@@ -17,6 +21,16 @@ impl Display for SendError {
 }
 
 type Payload = (MediaType, MessageHeader, Bytes);
+
+#[derive(Debug, Error)]
+pub enum CreateStreamError {
+    #[error("Failed to authenticate stream: {0}")]
+    AuthError(
+        #[source]
+        #[from]
+        AuthenticateError,
+    ),
+}
 
 pub enum SubscribeError {
     NotFound,
@@ -42,7 +56,14 @@ pub enum MediaType {
 
 #[async_trait]
 pub trait Broadcaster: Send + Sync {
-    async fn create_stream(&mut self, stream_key: &str) -> Box<dyn BroadcastStreamer>;
+    fn new(authenticator: Box<dyn Authenticator>) -> Self
+    where
+        Self: Sized;
+
+    async fn create_stream(
+        &mut self,
+        stream_key: &str,
+    ) -> Result<(Box<dyn BroadcastStreamer>, String), CreateStreamError>;
 
     async fn set_stream_video_header(
         &mut self,

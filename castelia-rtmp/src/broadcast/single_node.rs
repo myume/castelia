@@ -7,13 +7,14 @@ use tracing::{debug, error};
 
 use crate::{
     broadcast::{
-        BroadcastStreamer, Broadcaster, BroadcasterReceiver, MediaType, Payload, ReceiveError,
-        SendError, SetMetadataError, SubscribeError,
+        BroadcastStreamer, Broadcaster, BroadcasterReceiver, CreateStreamError, MediaType, Payload,
+        ReceiveError, SendError, SetMetadataError, SubscribeError, authenticator::Authenticator,
     },
     chunks::header::MessageHeader,
 };
 
 pub struct SingleNodeBroadcaster {
+    authenticator: Box<dyn Authenticator>,
     streams: HashMap<String, Stream>,
 }
 
@@ -31,26 +32,29 @@ struct Stream {
     sender: Sender<Payload>,
 }
 
-impl SingleNodeBroadcaster {
-    pub fn new() -> Self {
-        Self {
-            streams: HashMap::new(),
-        }
-    }
-}
-
 #[async_trait]
 impl Broadcaster for SingleNodeBroadcaster {
-    async fn create_stream(&mut self, stream_key: &str) -> Box<dyn BroadcastStreamer> {
-        let (tx, _) = broadcast::channel(100);
+    fn new(authenticator: Box<dyn Authenticator>) -> Self {
+        Self {
+            streams: HashMap::new(),
+            authenticator,
+        }
+    }
+
+    async fn create_stream(
+        &mut self,
+        stream_key: &str,
+    ) -> Result<(Box<dyn BroadcastStreamer>, String), CreateStreamError> {
+        let (tx, _) = broadcast::channel(128); // arbitrary number, figure out what this should be
+        let stream_id = self.authenticator.authenticate(stream_key).await?;
         let stream = Stream {
             metadata: None,
             sender: tx.clone(),
             audio_header: None,
             video_header: None,
         };
-        self.streams.insert(stream_key.to_owned(), stream);
-        Box::new(tx)
+        self.streams.insert(stream_id.clone(), stream);
+        Ok((Box::new(tx), stream_id))
     }
 
     async fn set_stream_video_header(
@@ -94,8 +98,8 @@ impl Broadcaster for SingleNodeBroadcaster {
         Ok(())
     }
 
-    async fn delete_stream(&mut self, stream_key: &str) {
-        self.streams.remove(stream_key);
+    async fn delete_stream(&mut self, stream_id: &str) {
+        self.streams.remove(stream_id);
     }
 
     async fn subscribe(

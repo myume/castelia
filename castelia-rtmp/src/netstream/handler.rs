@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use bytes::Bytes;
 use thiserror::Error;
 use tokio::sync::mpsc::Sender;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     amf::AMF0Value,
-    broadcast::MediaType,
+    broadcast::{CreateStreamError, MediaType},
     chunks::header::{FullMessageHeader, MessageHeader},
     messages::{
         Message,
@@ -30,6 +30,12 @@ pub enum HandleError {
     BroadcastNotFound,
     #[error("Failed to send message")]
     SendError(String),
+    #[error("Failed to create stream: {0}")]
+    CreateFailure(
+        #[source]
+        #[from]
+        CreateStreamError,
+    ),
 }
 
 impl NetStream {
@@ -44,12 +50,7 @@ impl NetStream {
             return Err(HandleError::NoneLiveBroadcast);
         }
 
-        self.stream = Some(broadcaster.lock().await.create_stream(stream_key).await);
-        self.stream_key = Some(stream_key.to_owned());
-        self.state = NetStreamState::Publishing;
-        trace!("Stream created");
-
-        let message = [
+        let mut message = [
             AMF0Value::String("onStatus"),
             AMF0Value::Number(0.0),
             AMF0Value::Null,
@@ -57,9 +58,26 @@ impl NetStream {
                 ("level", AMF0Value::String("status")),
                 ("code", AMF0Value::String("NetStream.Publish.Start")),
             ])),
-        ]
-        .map(|val| val.serialize())
-        .concat();
+        ];
+        match broadcaster.lock().await.create_stream(stream_key).await {
+            Ok((stream, stream_id)) => {
+                self.stream = Some(stream);
+                self.stream_id = Some(stream_id);
+                self.state = NetStreamState::Publishing;
+                info!("Published stream");
+            }
+            Err(err) => match err {
+                CreateStreamError::AuthError(auth_err) => {
+                    warn!("Failed to publish stream: {auth_err}");
+                    message[3] = AMF0Value::Object(HashMap::from([
+                        ("level", AMF0Value::String("error")),
+                        ("code", AMF0Value::String("NetStream.Publish.Denied")),
+                    ]));
+                }
+            },
+        };
+        let message = message.map(|val| val.serialize()).concat();
+
         if let Err(e) = send_queue
             .send((
                 FullMessageHeader {
@@ -75,7 +93,6 @@ impl NetStream {
         {
             error!("Failed to send message: {e}");
         };
-        info!("Published stream");
         Ok(())
     }
 
@@ -243,7 +260,7 @@ impl NetStream {
         metadata: Vec<AMF0Value<'a>>,
         broadcaster: Broadcasts,
     ) -> Result<(), HandleError> {
-        let Some(stream_key) = &self.stream_key else {
+        let Some(stream_key) = &self.stream_id else {
             return Err(HandleError::BroadcastNotFound);
         };
         if broadcaster
@@ -268,7 +285,7 @@ impl NetStream {
         media_type: MediaType,
         broadcaster: Broadcasts,
     ) -> Result<(), HandleError> {
-        let Some(stream_key) = &self.stream_key else {
+        let Some(stream_key) = &self.stream_id else {
             return Err(HandleError::BroadcastNotFound);
         };
 
