@@ -16,7 +16,7 @@ pub struct ChunkHeader {
 
 #[derive(Error, Debug)]
 pub enum ParseChunkHeaderError {
-    #[error("Failed to read chunk header")]
+    #[error("Failed to read chunk header: {0}")]
     ReadError(
         #[source]
         #[from]

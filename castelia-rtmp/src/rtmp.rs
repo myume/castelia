@@ -64,7 +64,15 @@ impl RTMPServer {
 async fn handle_rtmp_connection(socket: TcpStream, addr: SocketAddr, broadcaster: Broadcasts) {
     let connection = RTMPConnection::new(broadcaster);
     if let Err(e) = connection.process(socket).await {
-        error!("Failed to process rtmp connection: {e}");
+        match e.kind() {
+            io::ErrorKind::UnexpectedEof
+            | io::ErrorKind::ConnectionReset
+            | io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::ConnectionRefused => {
+                info!("Connection dropped by client")
+            }
+            _ => error!("Failed to process rtmp connection: {e}"),
+        }
     }
 }
 
@@ -141,6 +149,7 @@ impl RTMPConnection {
                 .chunk_handler
                 .read_chunk(&mut reader, &max_chunk_size)
                 .await?;
+
             trace!("finished reading chunk");
 
             if let Some((message_bytes, message_type_id, message_stream_id, recent_header)) =
@@ -208,7 +217,13 @@ impl RTMPConnection {
             for chunk in chunks {
                 trace!("sending chunk:\n{:#?}", &chunk);
                 if let Err(e) = writer.write_buf(&mut chunk.serialize()).await {
-                    return error!("Failed to send message: {e}");
+                    match e.kind() {
+                        io::ErrorKind::BrokenPipe => {
+                            info!("Sending message to closed connection, dropping message.")
+                        }
+                        _ => error!("Failed to send message: {e}"),
+                    }
+                    return;
                 }
             }
             debug!("sending message\n{:#?}", &message_header);
