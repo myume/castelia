@@ -1,5 +1,5 @@
 [package]
-name = "castelia-broadcast"
+name = "castelia-auth"
 version = "0.1.0"
 edition.workspace = true
 
@@ -10,6 +10,7 @@ anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tower-http.workspace = true
+sqlx.workspace = true
 
 [lints]
 workspace = true

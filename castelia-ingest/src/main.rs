@@ -13,6 +13,7 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:1935").await?;
     info!("Listening on {}", listener.local_addr()?);
 
+    // TODO: replace this with the actual implementation
     let authenticator = TestAutheticator {
         key_map: HashMap::from([("test".into(), "test_user".into())]),
     };
