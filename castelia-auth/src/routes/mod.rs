@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use aes_gcm::{AeadCore, Aes256Gcm, aead::Aead};
 use argon2::{
     Argon2,
     password_hash::{PasswordHashString, PasswordHasher, SaltString, rand_core::OsRng},
@@ -11,8 +12,9 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use base64::Engine;
+use rand::TryRngCore;
 use serde::Deserialize;
-use thiserror::Error;
 use tracing::error;
 use validator::Validate;
 
@@ -42,7 +44,7 @@ where
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 enum CreateUserError {
     #[error(transparent)]
     ValidationError(#[from] validator::ValidationErrors),
@@ -55,6 +57,9 @@ enum CreateUserError {
 
     #[error(transparent)]
     InsertionError(#[from] sqlx::Error),
+
+    #[error("Failed to generate stream key")]
+    StreamKeyGenerationFailure(String),
 }
 
 impl IntoResponse for CreateUserError {
@@ -77,6 +82,10 @@ impl IntoResponse for CreateUserError {
                     StatusCode::INTERNAL_SERVER_ERROR.into_response()
                 }
             },
+            CreateUserError::StreamKeyGenerationFailure(error) => {
+                error!("Failed to generate stream key: {error}");
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
         }
     }
 }
@@ -94,6 +103,20 @@ async fn health_check() -> StatusCode {
     StatusCode::OK
 }
 
+fn generate_stream_key(cipher: &Aes256Gcm) -> Result<String, String> {
+    let mut bytes = [0u8; 32];
+    rand::rngs::OsRng
+        .try_fill_bytes(&mut bytes)
+        .map_err(|_| "Could not generate stream key")?;
+    let secret = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+    let stream_key = format!("cast_{}", secret);
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let encrypted_stream_key = cipher
+        .encrypt(&nonce, stream_key.as_bytes().as_ref())
+        .map_err(|_| "Failed to encrypt stream key")?;
+    Ok(hex::encode(encrypted_stream_key))
+}
+
 async fn signup(
     State(state): State<Arc<AppState>>,
     ValidatedUser(user): ValidatedUser,
@@ -109,13 +132,17 @@ async fn signup(
         .await
         .map_err(|_| CreateUserError::PasswordHashFailure)??;
 
+    let encryped_stream_key =
+        generate_stream_key(&state.cipher).map_err(CreateUserError::StreamKeyGenerationFailure)?;
+
     sqlx::query!(
-        r#"INSERT INTO users (username, email, password) VALUES ($1, $2, $3)"#,
+        r#"INSERT INTO users (username, email, password, stream_key) VALUES ($1, $2, $3, $4)"#,
         user.username,
         user.email,
-        password_hash.as_str()
+        password_hash.as_str(),
+        encryped_stream_key
     )
-    .execute(&state.db_pool)
+    .execute(&state.db)
     .await?;
 
     Ok(())
