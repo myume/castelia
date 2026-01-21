@@ -103,7 +103,7 @@ async fn health_check() -> StatusCode {
     StatusCode::OK
 }
 
-fn generate_stream_key(cipher: &Aes256Gcm) -> Result<String, String> {
+fn generate_stream_key(cipher: &Aes256Gcm) -> Result<(Vec<u8>, Vec<u8>), String> {
     let mut bytes = [0u8; 32];
     rand::rngs::OsRng
         .try_fill_bytes(&mut bytes)
@@ -114,13 +114,13 @@ fn generate_stream_key(cipher: &Aes256Gcm) -> Result<String, String> {
     let encrypted_stream_key = cipher
         .encrypt(&nonce, stream_key.as_bytes().as_ref())
         .map_err(|_| "Failed to encrypt stream key")?;
-    Ok(hex::encode(encrypted_stream_key))
+    Ok((encrypted_stream_key, nonce.to_vec()))
 }
 
 async fn signup(
     State(state): State<Arc<AppState>>,
     ValidatedUser(user): ValidatedUser,
-) -> Result<(), CreateUserError> {
+) -> Result<StatusCode, CreateUserError> {
     let password_hash =
         tokio::task::spawn_blocking(move || -> Result<PasswordHashString, CreateUserError> {
             let salt = SaltString::generate(&mut OsRng);
@@ -132,20 +132,21 @@ async fn signup(
         .await
         .map_err(|_| CreateUserError::PasswordHashFailure)??;
 
-    let encryped_stream_key =
+    let (encryped_stream_key, nonce) =
         generate_stream_key(&state.cipher).map_err(CreateUserError::StreamKeyGenerationFailure)?;
 
     sqlx::query!(
-        r#"INSERT INTO users (username, email, password, stream_key) VALUES ($1, $2, $3, $4)"#,
+        r#"INSERT INTO users (username, email, password, stream_key, nonce) VALUES ($1, $2, $3, $4, $5)"#,
         user.username,
         user.email,
         password_hash.as_str(),
-        encryped_stream_key
+        encryped_stream_key,
+        nonce
     )
     .execute(&state.db)
     .await?;
 
-    Ok(())
+    Ok(StatusCode::CREATED)
 }
 
 async fn login() {}

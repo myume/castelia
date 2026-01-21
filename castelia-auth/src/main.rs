@@ -12,8 +12,8 @@ async fn init_state() -> anyhow::Result<AppState> {
         .connect(&db_url)
         .await?;
 
-    let encryption_key = env::var("ENCRYPTION_KEY")?;
-    let cipher = Aes256Gcm::new(encryption_key.as_bytes().into());
+    let encryption_key = hex::decode(env::var("ENCRYPTION_KEY")?)?;
+    let cipher = Aes256Gcm::new(encryption_key.as_slice().into());
 
     Ok(AppState { db: pool, cipher })
 }
