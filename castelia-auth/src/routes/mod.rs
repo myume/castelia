@@ -95,7 +95,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/health", get(health_check))
         .route("/login", post(login))
         .route("/signup", post(signup))
-        .route("/verify", post(verify_streamkey))
+        .route("/streamkey", post(verify_streamkey))
+        .route("/streamkey", get(get_streamkey))
         .with_state(state)
 }
 
@@ -150,5 +151,7 @@ async fn signup(
 }
 
 async fn login() {}
+
+async fn get_streamkey() {}
 
 async fn verify_streamkey() {}
