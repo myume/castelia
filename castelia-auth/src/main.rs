@@ -1,5 +1,6 @@
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
+use anyhow::Context;
 use sqlx::{Pool, postgres::PgPoolOptions};
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -11,9 +12,10 @@ struct AppState {
 }
 
 async fn init_state() -> anyhow::Result<AppState> {
+    let db_url = env::var("DATABASE_URL").context("DATABASE_URL not found")?;
     let pool = PgPoolOptions::new()
         .max_connections(5) // make this dynamically configurable?
-        .connect("postgres://postgres:password@localhost/test")
+        .connect(&db_url)
         .await?;
 
     Ok(AppState { db_pool: pool })
@@ -21,6 +23,8 @@ async fn init_state() -> anyhow::Result<AppState> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    dotenvy::dotenv()?;
+
     tracing_subscriber::fmt::init();
 
     let state = init_state().await?;
