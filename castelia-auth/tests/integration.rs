@@ -4,14 +4,13 @@ use axum::{
     http::{self, Request, StatusCode},
 };
 use castelia_auth::{AppState, app};
+use http_body_util::BodyExt;
 use serde_json::json;
 use sqlx::PgPool;
 use tower::ServiceExt;
 
 #[sqlx::test(migrations = "../migrations")]
-fn test_signup(pool: PgPool) {
-    tracing_subscriber::fmt::init();
-
+fn test_signup_success(pool: PgPool) {
     let state = AppState {
         db: pool.clone(),
         encryption_key: vec![0; 32],
@@ -60,4 +59,161 @@ fn test_signup(pool: PgPool) {
             )
             .is_ok()
     );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+fn test_login_success(pool: PgPool) {
+    let state = AppState {
+        db: pool.clone(),
+        encryption_key: vec![0; 32],
+    };
+
+    let username = "test";
+    let password = "password";
+    let email = "email@email.com";
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .uri("/signup")
+                .body(Body::from(
+                    json!({
+                        "username": username,
+                        "password": password,
+                        "email": email
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .uri("/login")
+                .body(Body::from(
+                    json!({
+                        "username": username,
+                        "password": password,
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+fn test_login_wrong_password(pool: PgPool) {
+    let state = AppState {
+        db: pool.clone(),
+        encryption_key: vec![0; 32],
+    };
+
+    let username = "test";
+    let password = "password";
+    let email = "email@email.com";
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .uri("/signup")
+                .body(Body::from(
+                    json!({
+                        "username": username,
+                        "password": password,
+                        "email": email
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .uri("/login")
+                .body(Body::from(
+                    json!({
+                        "username": username,
+                        "password": "wrong password",
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&body[..], b"Invalid username or password.");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+fn test_login_wrong_username(pool: PgPool) {
+    let state = AppState {
+        db: pool.clone(),
+        encryption_key: vec![0; 32],
+    };
+
+    let username = "test";
+    let password = "password";
+    let email = "email@email.com";
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .uri("/signup")
+                .body(Body::from(
+                    json!({
+                        "username": username,
+                        "password": password,
+                        "email": email
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .uri("/login")
+                .body(Body::from(
+                    json!({
+                        "username": "some_random_user",
+                        "password": "wrong password",
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&body[..], b"Invalid username or password.");
 }

@@ -8,12 +8,13 @@ use axum::{
 
 use crate::AppState;
 
+mod login;
 mod signup;
 
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(health_check))
-        .route("/login", post(login))
+        .route("/login", post(login::login))
         .route("/signup", post(signup::signup))
         .route("/streamkey", post(verify_streamkey))
         .route("/streamkey", get(get_streamkey))
@@ -23,8 +24,6 @@ pub fn router(state: Arc<AppState>) -> Router {
 async fn health_check() -> StatusCode {
     StatusCode::OK
 }
-
-async fn login() {}
 
 async fn get_streamkey() {}
 
