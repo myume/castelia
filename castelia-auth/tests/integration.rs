@@ -1,4 +1,3 @@
-use aes_gcm::{Aes256Gcm, KeyInit};
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{
     body::Body,
@@ -15,7 +14,7 @@ fn test_signup(pool: PgPool) {
 
     let state = AppState {
         db: pool.clone(),
-        cipher: Aes256Gcm::new(&[0; 32].into()),
+        encryption_key: vec![0; 32],
     };
 
     let username = "test";

@@ -1,6 +1,6 @@
 use std::env;
 
-use aes_gcm::{Aes256Gcm, KeyInit};
+use base64::Engine;
 use castelia_auth::{AppState, app};
 use sqlx::postgres::PgPoolOptions;
 use tracing::info;
@@ -12,10 +12,13 @@ async fn init_state() -> anyhow::Result<AppState> {
         .connect(&db_url)
         .await?;
 
-    let encryption_key = hex::decode(env::var("ENCRYPTION_KEY")?)?;
-    let cipher = Aes256Gcm::new(encryption_key.as_slice().into());
+    let encryption_key =
+        base64::engine::general_purpose::STANDARD.decode(env::var("ENCRYPTION_KEY")?)?;
 
-    Ok(AppState { db: pool, cipher })
+    Ok(AppState {
+        db: pool,
+        encryption_key,
+    })
 }
 
 #[tokio::main]

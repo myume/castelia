@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use aes_gcm::{AeadCore, Aes256Gcm, aead::Aead};
+use aes_gcm::{AeadCore, Aes256Gcm, KeyInit, aead::Aead};
 use argon2::{
     Argon2,
     password_hash::{PasswordHashString, PasswordHasher, SaltString, rand_core::OsRng},
@@ -104,13 +104,14 @@ async fn health_check() -> StatusCode {
     StatusCode::OK
 }
 
-fn generate_stream_key(cipher: &Aes256Gcm) -> Result<(Vec<u8>, Vec<u8>), String> {
+fn generate_stream_key(encryption_key: &[u8]) -> Result<(Vec<u8>, Vec<u8>), String> {
     let mut bytes = [0u8; 32];
     rand::rngs::OsRng
         .try_fill_bytes(&mut bytes)
         .map_err(|_| "Could not generate stream key")?;
     let secret = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
     let stream_key = format!("cast_{}", secret);
+    let cipher = Aes256Gcm::new(encryption_key.into());
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let encrypted_stream_key = cipher
         .encrypt(&nonce, stream_key.as_bytes().as_ref())
@@ -133,8 +134,8 @@ async fn signup(
         .await
         .map_err(|_| CreateUserError::PasswordHashFailure)??;
 
-    let (encryped_stream_key, nonce) =
-        generate_stream_key(&state.cipher).map_err(CreateUserError::StreamKeyGenerationFailure)?;
+    let (encryped_stream_key, nonce) = generate_stream_key(&state.encryption_key)
+        .map_err(CreateUserError::StreamKeyGenerationFailure)?;
 
     sqlx::query!(
         r#"INSERT INTO users (username, email, password, stream_key, nonce) VALUES ($1, $2, $3, $4, $5)"#,
