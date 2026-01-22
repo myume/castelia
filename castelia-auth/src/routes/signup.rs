@@ -13,7 +13,10 @@ use serde::Deserialize;
 use tracing::error;
 use validator::Validate;
 
-use crate::{AppState, routes::stream_key::generate_stream_key};
+use crate::{
+    AppState,
+    routes::stream_key::{encrypt_stream_key, generate_stream_key, hash_stream_key},
+};
 
 #[derive(Deserialize, Validate)]
 struct CreateUser {
@@ -100,16 +103,20 @@ pub async fn signup(
         .await
         .map_err(|_| CreateUserError::PasswordHashFailure)??;
 
-    let (encryped_stream_key, nonce) = generate_stream_key(&state.encryption_key)
+    let stream_key = generate_stream_key().map_err(CreateUserError::StreamKeyGenerationFailure)?;
+    let (encrypted_stream_key, nonce) = encrypt_stream_key(&stream_key, &state.encryption_key)
+        .map_err(CreateUserError::StreamKeyGenerationFailure)?;
+    let stream_key_hash = hash_stream_key(&stream_key, &state.encryption_key)
         .map_err(CreateUserError::StreamKeyGenerationFailure)?;
 
     sqlx::query!(
-        r#"INSERT INTO users (username, email, password, stream_key, nonce) VALUES ($1, $2, $3, $4, $5)"#,
+        r#"INSERT INTO users (username, email, password, stream_key, nonce, stream_key_hash) VALUES ($1, $2, $3, $4, $5, $6)"#,
         user.username,
         user.email,
         password_hash.as_str(),
-        encryped_stream_key,
-        nonce
+        encrypted_stream_key,
+        nonce,
+        stream_key_hash
     )
     .execute(&state.db)
     .await?;

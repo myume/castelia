@@ -1,29 +1,46 @@
 use aes_gcm::{
     AeadCore, Aes256Gcm, KeyInit,
-    aead::{Aead, OsRng},
+    aead::{Aead, OsRng, rand_core::RngCore},
 };
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use base64::Engine;
-use rand::TryRngCore;
+use hmac::Mac;
 use tracing::error;
 
 use crate::{AppState, routes::Claims};
 
-pub fn generate_stream_key(encryption_key: &[u8]) -> Result<(Vec<u8>, Vec<u8>), String> {
-    let mut bytes = [0u8; 32];
-    rand::rngs::OsRng
-        .try_fill_bytes(&mut bytes)
-        .map_err(|_| "Could not generate stream key")?;
-    let secret = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
-    let stream_key = format!("cast_{}", secret);
+pub fn encrypt_stream_key(
+    stream_key: &str,
+    encryption_key: &[u8],
+) -> Result<(Vec<u8>, Vec<u8>), String> {
     let cipher = Aes256Gcm::new(encryption_key.into());
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let encrypted_stream_key = cipher
         .encrypt(&nonce, stream_key.as_bytes().as_ref())
         .map_err(|_| "Failed to encrypt stream key")?;
+
     Ok((encrypted_stream_key, nonce.to_vec()))
 }
 
+pub fn hash_stream_key(stream_key: &str, encryption_key: &[u8]) -> Result<Vec<u8>, String> {
+    let mut mac = <hmac::Hmac<sha2::Sha256> as hmac::Mac>::new_from_slice(encryption_key)
+        .map_err(|_| "Failed to initialize HMAC hash")?;
+
+    mac.update(stream_key.as_bytes());
+    Ok(mac.finalize().into_bytes().to_vec())
+}
+
+pub fn generate_stream_key() -> Result<String, String> {
+    let mut bytes = [0u8; 32];
+    OsRng
+        .try_fill_bytes(&mut bytes)
+        .map_err(|_| "Could not generate stream key")?;
+
+    let secret = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+    let stream_key = format!("cast_{}", secret);
+
+    Ok(stream_key)
+}
 fn decrypt_stream_key(
     encrypted_stream_key: &[u8],
     nonce: &[u8],
