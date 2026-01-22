@@ -98,14 +98,14 @@ pub async fn get_streamkey(
     Ok(stream_key)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct VerifyStreamKeyRequest {
-    stream_key: String,
+    pub stream_key: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct VerifyStreamKeyResponse {
-    username: String,
+    pub username: String,
 }
 
 pub async fn verify_streamkey(

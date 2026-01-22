@@ -5,6 +5,12 @@ use thiserror::Error;
 pub enum AuthenticateError {
     #[error("Invalid Stream Key")]
     InvalidKey,
+
+    #[error("Error sending stream key")]
+    SendError,
+
+    #[error("Unexpected response while authenticating stream key")]
+    UnexpectedResponse,
 }
 
 #[async_trait]

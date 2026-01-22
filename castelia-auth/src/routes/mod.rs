@@ -16,7 +16,7 @@ use crate::AppState;
 
 mod login;
 mod signup;
-mod stream_key;
+pub mod stream_key;
 
 pub enum AuthError {
     InvalidToken,

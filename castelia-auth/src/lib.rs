@@ -1,7 +1,7 @@
 use sqlx::Pool;
 use tower_http::trace::TraceLayer;
 
-mod routes;
+pub mod routes;
 
 #[derive(Clone)]
 pub struct AppState {
