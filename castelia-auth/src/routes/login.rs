@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use chrono::{TimeDelta, Utc};
@@ -7,7 +5,7 @@ use jsonwebtoken::{EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::AppState;
+use crate::{AppState, routes::Claims};
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
@@ -25,6 +23,9 @@ pub enum LoginError {
 
     #[error(transparent)]
     JWTEncoding(#[from] jsonwebtoken::errors::Error),
+
+    #[error(transparent)]
+    InvalidUserId(#[from] uuid::Error),
 }
 
 impl IntoResponse for LoginError {
@@ -43,14 +44,12 @@ impl IntoResponse for LoginError {
                 error!("Failed to encode JWT: {error}");
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
+            LoginError::InvalidUserId(error) => {
+                error!("Could not parse user id as uuid: {error}");
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
-    pub exp: usize,
-    pub user_id: String,
 }
 
 struct User {
@@ -58,10 +57,15 @@ struct User {
     password: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LoginResponse {
+    access_token: String,
+}
+
 pub async fn login(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(login): Json<LoginRequest>,
-) -> Result<String, LoginError> {
+) -> Result<Json<LoginResponse>, LoginError> {
     let user = sqlx::query_as!(
         User,
         "SELECT id, password FROM users WHERE username = $1",
@@ -82,15 +86,15 @@ pub async fn login(
         .checked_add_signed(TimeDelta::hours(1))
         .unwrap_or(Utc::now());
     let claims = Claims {
-        user_id: user.id,
+        sub: uuid::Uuid::parse_str(&user.id)?,
         exp: exp.timestamp() as usize,
     };
 
-    let token = jsonwebtoken::encode(
+    let access_token = jsonwebtoken::encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(state.encryption_key.as_ref()),
     )?;
 
-    Ok(token)
+    Ok(Json(LoginResponse { access_token }))
 }

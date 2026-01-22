@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use sqlx::Pool;
 use tower_http::trace::TraceLayer;
 
@@ -12,5 +10,5 @@ pub struct AppState {
 }
 
 pub fn app(state: AppState) -> axum::Router {
-    routes::router(Arc::new(state)).layer(TraceLayer::new_for_http())
+    routes::router(state).layer(TraceLayer::new_for_http())
 }

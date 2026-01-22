@@ -1,9 +1,4 @@
-use std::sync::Arc;
-
-use aes_gcm::{
-    AeadCore, Aes256Gcm, KeyInit,
-    aead::{Aead, OsRng},
-};
+use aes_gcm::aead::OsRng;
 use argon2::{
     Argon2, PasswordHasher,
     password_hash::{PasswordHashString, SaltString},
@@ -14,13 +9,11 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use base64::Engine;
-use rand::TryRngCore;
 use serde::Deserialize;
 use tracing::error;
 use validator::Validate;
 
-use crate::AppState;
+use crate::{AppState, routes::stream_key::generate_stream_key};
 
 #[derive(Deserialize, Validate)]
 struct CreateUser {
@@ -93,7 +86,7 @@ impl IntoResponse for CreateUserError {
 }
 
 pub async fn signup(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     ValidatedUser(user): ValidatedUser,
 ) -> Result<StatusCode, CreateUserError> {
     let password_hash =
@@ -122,19 +115,4 @@ pub async fn signup(
     .await?;
 
     Ok(StatusCode::CREATED)
-}
-
-fn generate_stream_key(encryption_key: &[u8]) -> Result<(Vec<u8>, Vec<u8>), String> {
-    let mut bytes = [0u8; 32];
-    rand::rngs::OsRng
-        .try_fill_bytes(&mut bytes)
-        .map_err(|_| "Could not generate stream key")?;
-    let secret = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
-    let stream_key = format!("cast_{}", secret);
-    let cipher = Aes256Gcm::new(encryption_key.into());
-    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
-    let encrypted_stream_key = cipher
-        .encrypt(&nonce, stream_key.as_bytes().as_ref())
-        .map_err(|_| "Failed to encrypt stream key")?;
-    Ok((encrypted_stream_key, nonce.to_vec()))
 }
