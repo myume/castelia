@@ -61,10 +61,10 @@ impl NetStream {
         ];
         match broadcaster.lock().await.create_stream(stream_key).await {
             Ok((stream, stream_id)) => {
+                info!("Published stream for user: \"{}\"", &stream_id);
                 self.stream = Some(stream);
                 self.stream_id = Some(stream_id);
                 self.state = NetStreamState::Publishing;
-                info!("Published stream");
             }
             Err(err) => match err {
                 CreateStreamError::AuthError(auth_err) => {
@@ -76,8 +76,8 @@ impl NetStream {
                 }
             },
         };
-        let message = message.map(|val| val.serialize()).concat();
 
+        let message = message.map(|val| val.serialize()).concat();
         if send_queue
             .send((
                 FullMessageHeader {
@@ -92,8 +92,9 @@ impl NetStream {
             .await
             .is_err()
         {
-            info!("Send stream is closed, terminating stream");
+            debug!("Send stream is closed, terminating stream");
         };
+
         Ok(())
     }
 
@@ -136,7 +137,7 @@ impl NetStream {
         let message_stream_id = self.id;
         let channel_name = channel_name.to_owned();
         tokio::spawn(async move {
-            info!("subscribed to stream {}", channel_name);
+            debug!("subscribed to stream {}", channel_name);
             let Ok(metadata) = receiver.receive_metadata().await else {
                 return error!("Failed to get metadata for stream");
             };
@@ -183,7 +184,7 @@ impl NetStream {
             ];
             for message in messages {
                 if send_queue.send(message).await.is_err() {
-                    return info!("Send stream is closed, terminating client");
+                    return debug!("Send stream is closed, terminating client");
                 }
             }
 
@@ -215,11 +216,10 @@ impl NetStream {
                     .await
                     .is_err()
                 {
-                    return info!("Send stream is closed, terminating client");
+                    return debug!("Send stream is closed, terminating client");
                 }
             }
 
-            info!("Stream has finished");
             let message = [
                 AMF0Value::String("onStatus"),
                 AMF0Value::Number(0.0),
@@ -244,7 +244,7 @@ impl NetStream {
                 .await
                 .is_err()
             {
-                info!("Send stream is closed, terminating client");
+                debug!("Send stream is closed, terminating client");
             }
         });
         Ok(())
