@@ -8,6 +8,7 @@
   rustPlatform,
   watchexec,
   ffmpeg,
+  sqlx-cli,
 }:
 mkShell {
   packages = [
@@ -18,6 +19,7 @@ mkShell {
     clippy
     watchexec
     ffmpeg
+    sqlx-cli
   ];
 
   env.RUST_SRC_PATH = "${rustPlatform.rustLibSrc}";
