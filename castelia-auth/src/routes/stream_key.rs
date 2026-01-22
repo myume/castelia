@@ -2,9 +2,10 @@ use aes_gcm::{
     AeadCore, Aes256Gcm, KeyInit,
     aead::{Aead, OsRng, rand_core::RngCore},
 };
-use axum::{extract::State, http::StatusCode, response::IntoResponse};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use base64::Engine;
 use hmac::Mac;
+use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use crate::{AppState, routes::Claims};
@@ -75,8 +76,8 @@ impl IntoResponse for StreamKeyError {
 }
 
 pub async fn get_streamkey(
-    claims: Claims,
     State(state): State<AppState>,
+    claims: Claims,
 ) -> Result<String, StreamKeyError> {
     struct StreamKey {
         stream_key: Vec<u8>,
@@ -97,4 +98,49 @@ pub async fn get_streamkey(
     Ok(stream_key)
 }
 
-pub async fn verify_streamkey() {}
+#[derive(Debug, Deserialize)]
+pub struct VerifyStreamKeyRequest {
+    stream_key: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct VerifyStreamKeyResponse {
+    username: String,
+}
+
+pub async fn verify_streamkey(
+    State(state): State<AppState>,
+    Json(VerifyStreamKeyRequest { stream_key }): Json<VerifyStreamKeyRequest>,
+) -> Result<Json<VerifyStreamKeyResponse>, StatusCode> {
+    let hashed_stream_key = hash_stream_key(&stream_key, &state.encryption_key).map_err(|_| {
+        error!("Unable to hash stream key");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    struct Row {
+        username: String,
+        stream_key: Vec<u8>,
+        nonce: Vec<u8>,
+    }
+    // should we handle collisions? something to think about.
+    let row = sqlx::query_as!(
+        Row,
+        "SELECT username, stream_key, nonce FROM users WHERE stream_key_hash = $1",
+        hashed_stream_key
+    )
+    .fetch_one(&state.db)
+    .await
+    .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    let expected_stream_key =
+        decrypt_stream_key(&row.stream_key, &row.nonce, &state.encryption_key)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if expected_stream_key != stream_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    Ok(Json(VerifyStreamKeyResponse {
+        username: row.username,
+    }))
+}

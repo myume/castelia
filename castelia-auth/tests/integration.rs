@@ -78,6 +78,26 @@ async fn get_stream_key(access_token: &str, state: &AppState) -> Response<Body> 
         .unwrap()
 }
 
+#[allow(clippy::unwrap_used)]
+async fn verify_stream_key(stream_key: &str, state: &AppState) -> Response<Body> {
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .uri("/streamkey")
+                .body(Body::from(
+                    json!({
+                        "stream_key": stream_key,
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
 #[sqlx::test(migrations = "../migrations")]
 fn test_signup_success(pool: PgPool) {
     let state = AppState {
@@ -249,4 +269,58 @@ fn test_get_streamkey_no_jwt(pool: PgPool) {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+fn test_verify_stream_key(pool: PgPool) {
+    let state = AppState {
+        db: pool.clone(),
+        encryption_key: vec![0; 32],
+    };
+
+    let user = User {
+        username: "test".into(),
+        password: "password".into(),
+        email: "email@email.com".into(),
+    };
+    signup(&user, &state).await;
+    let login = login(&user, &state).await;
+
+    let body = login.into_body().collect().await.unwrap().to_bytes();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let response = get_stream_key(body["access_token"].as_str().unwrap(), &state).await;
+    let stream_key = String::from_utf8(
+        response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .to_vec(),
+    )
+    .unwrap();
+
+    let verify_response = verify_stream_key(&stream_key, &state).await;
+    assert_eq!(verify_response.status(), StatusCode::OK);
+
+    let body = verify_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["username"].as_str().unwrap(), user.username);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+fn test_verify_stream_key_unauthorized(pool: PgPool) {
+    let state = AppState {
+        db: pool.clone(),
+        encryption_key: vec![0; 32],
+    };
+
+    let verify_response = verify_stream_key("random_stream_key", &state).await;
+    assert_eq!(verify_response.status(), StatusCode::UNAUTHORIZED);
 }
