@@ -1,4 +1,12 @@
 services:
+  ingest:
+    build: 
+      context: .
+      dockerfile: castelia-ingest/Dockerfile
+    env_file:
+      - ./.env
+    ports:
+      - "1935:1935"
   db:
     image: postgres:18-alpine
     environment:

@@ -12,7 +12,7 @@ use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    dotenv()?;
+    dotenv().ok();
 
     let auth_url = env::var("AUTH_URL")?;
     let authenticator = ApiAuth::new(&auth_url);
