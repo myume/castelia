@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT username, stream_key, nonce FROM users WHERE stream_key_hash = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "stream_key",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "nonce",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "48fab4cc37495690254aff04c95b3b7946c2a1780179239d619d18b14c78170d"
+}
