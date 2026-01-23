@@ -172,7 +172,14 @@ impl NetConnection {
                 self.handle_connect(send_queue, connection_state).await?;
             }
             super::command::NetConnectionCommandType::Call(procedure) => {
-                return Err(HandleError::UnsupportedCommand(procedure.to_owned()));
+                match procedure {
+                    "FCUnpublish" => {
+                        debug!("Unpublishing stream");
+                    }
+                    "releaseStream" | "FCPublish" => {}
+                    _ => return Err(HandleError::UnsupportedCommand(procedure.to_owned())),
+                }
+                return Ok(());
             }
             super::command::NetConnectionCommandType::Close => {
                 *should_exit = true;
