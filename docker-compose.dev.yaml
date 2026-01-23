@@ -53,3 +53,8 @@ services:
       POSTGRES_DB: $POSTGRES_DB
     ports:
       - "5432:5432"
+    volumes:
+      - db:/var/lib/postgresql
+
+volumes:
+  db:
