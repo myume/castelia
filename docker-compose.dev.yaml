@@ -19,7 +19,6 @@ services:
       - AUTH_URL=http://auth:3000
     ports:
       - "1935:1935"
-    depends_on: [auth]
 
   db:
     image: postgres:18-alpine

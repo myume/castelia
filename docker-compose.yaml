@@ -1,12 +1,24 @@
 services:
+  auth:
+    build: 
+      context: .
+      dockerfile: castelia-auth/Dockerfile
+    env_file:
+      ./.env
+    environment:
+      - DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@db:5432/$POSTGRES_DB
+    depends_on: 
+      - db
+
   ingest:
     build: 
       context: .
       dockerfile: castelia-ingest/Dockerfile
-    env_file:
-      - ./.env
+    environment:
+      - AUTH_URL=http://auth:3000
+
   db:
-    image: postgres:18
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: $POSTGRES_USER
       POSTGRES_PASSWORD: $POSTGRES_PASSWORD
