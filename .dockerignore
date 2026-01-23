@@ -1,0 +1,13 @@
+flake.*
+.direnv
+target
+.github
+nix
+
+.git
+.gitignore
+
+.env
+
+docker-compose*.yaml
+Dockerfile*

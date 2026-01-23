@@ -1,6 +1,48 @@
 services:
+  traefik:
+    image: traefik:v3.6
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entryPoints.web.address=:8086"
+      - "--entryPoints.rtmp.address=:1935"
+      - "--accesslog=true"
+    ports:
+      - "8086:8086"
+      - "1935:1935"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+  auth:
+    build: 
+      context: .
+      dockerfile: castelia-auth/Dockerfile
+    env_file:
+      ./.env
+    environment:
+      - DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@db:5432/$POSTGRES_DB
+    depends_on: 
+      - db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=PathPrefix(`/auth/`)"
+      - "traefik.http.middlewares.auth-strip.stripprefix.prefixes=/auth"
+      - "traefik.http.routers.auth.middlewares=auth-strip"
+
+  ingest:
+    build: 
+      context: .
+      dockerfile: castelia-ingest/Dockerfile
+    environment:
+      - AUTH_URL=http://auth:3000
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.ingest-router.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.ingest-router.entrypoints=rtmp"
+
   db:
-    image: postgres:18
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: $POSTGRES_USER
       POSTGRES_PASSWORD: $POSTGRES_PASSWORD

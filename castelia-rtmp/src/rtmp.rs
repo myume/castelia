@@ -69,7 +69,7 @@ async fn handle_rtmp_connection(socket: TcpStream, addr: SocketAddr, broadcaster
             | io::ErrorKind::ConnectionReset
             | io::ErrorKind::ConnectionAborted
             | io::ErrorKind::ConnectionRefused => {
-                info!("Connection dropped by client")
+                debug!("Connection dropped by client")
             }
             _ => error!("Failed to process rtmp connection: {e}"),
         }
@@ -209,7 +209,7 @@ impl RTMPConnection {
     ) where
         T: AsyncWriteExt + std::marker::Unpin,
     {
-        info!("initialized outbound message processor");
+        debug!("Initialized outbound message processor");
         while let Some((message_header, payload)) = send_queue.recv().await {
             // chunk payload and send chunks
             let chunks = Chunk::into_chunks(&message_header, payload, SERVER_CHUNK_SIZE);
@@ -219,7 +219,7 @@ impl RTMPConnection {
                 if let Err(e) = writer.write_buf(&mut chunk.serialize()).await {
                     match e.kind() {
                         io::ErrorKind::BrokenPipe => {
-                            info!("Sending message to closed connection, dropping message.")
+                            debug!("Sending message to closed connection, dropping message.")
                         }
                         _ => error!("Failed to send message: {e}"),
                     }

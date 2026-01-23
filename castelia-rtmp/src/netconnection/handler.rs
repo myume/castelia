@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use thiserror::Error;
 use tokio::sync::mpsc::{Sender, error::SendError};
-use tracing::{error, info};
+use tracing::{debug, error};
 
 use crate::{
     amf::AMF0Value,
@@ -118,7 +118,7 @@ impl NetConnection {
             ))
             .await?;
 
-        info!("Connection established");
+        debug!("Connection established");
 
         Ok(())
     }
@@ -154,7 +154,7 @@ impl NetConnection {
             return Err(HandleError::SendError(e));
         };
 
-        info!("Created stream {created_stream_id}");
+        debug!("Created stream {created_stream_id}");
         Ok(())
     }
 
@@ -172,7 +172,14 @@ impl NetConnection {
                 self.handle_connect(send_queue, connection_state).await?;
             }
             super::command::NetConnectionCommandType::Call(procedure) => {
-                return Err(HandleError::UnsupportedCommand(procedure.to_owned()));
+                match procedure {
+                    "FCUnpublish" => {
+                        debug!("Unpublishing stream");
+                    }
+                    "releaseStream" | "FCPublish" => {}
+                    _ => return Err(HandleError::UnsupportedCommand(procedure.to_owned())),
+                }
+                return Ok(());
             }
             super::command::NetConnectionCommandType::Close => {
                 *should_exit = true;

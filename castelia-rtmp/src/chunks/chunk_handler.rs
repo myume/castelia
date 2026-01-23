@@ -6,7 +6,7 @@ use tokio::{
     io::{AsyncReadExt, BufReader},
     time::timeout,
 };
-use tracing::{debug, error, trace, warn};
+use tracing::{error, trace, warn};
 
 use crate::chunks::{
     CSId, Chunk,
@@ -76,7 +76,7 @@ impl ChunkHandler {
         T: AsyncReadExt + std::marker::Unpin,
     {
         let header = timeout(Duration::from_secs(30), ChunkHeader::read_header(reader)).await??;
-        debug!("chunk header has been parsed:\n{:#?}", header);
+        trace!("chunk header has been parsed:\n{:#?}", header);
 
         let remaining_message_length = self
             .chunk_streams

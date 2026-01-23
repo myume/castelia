@@ -5,7 +5,7 @@ use std::{
 
 use thiserror::Error;
 use tokio::sync::mpsc::Sender;
-use tracing::{info, trace};
+use tracing::{debug, trace};
 
 use crate::{
     chunks::header::MessageHeader,
@@ -115,7 +115,7 @@ impl MessageRouter {
                             broadcaster.lock().await.delete_stream(&stream_id).await;
                         }
 
-                        info!("Deleted netstream {}", stream.id);
+                        debug!("Deleted netstream {}", stream.id);
                     } else {
                         return Err(RouteError::MissingNetStream(*stream_id));
                     }
