@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let state = init_state().await?;
-    sqlx::migrate!("db/migrations").run(&state.db).await?;
+    sqlx::migrate!().run(&state.db).await?;
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     info!("Listening on {}", listener.local_addr()?);

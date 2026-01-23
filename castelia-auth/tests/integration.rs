@@ -98,7 +98,7 @@ async fn verify_stream_key(stream_key: &str, state: &AppState) -> Response<Body>
         .unwrap()
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test]
 fn test_signup_success(pool: PgPool) {
     let state = AppState {
         db: pool.clone(),
@@ -134,7 +134,7 @@ fn test_signup_success(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test]
 fn test_login_success(pool: PgPool) {
     let state = AppState {
         db: pool.clone(),
@@ -153,7 +153,7 @@ fn test_login_success(pool: PgPool) {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test]
 fn test_login_wrong_password(pool: PgPool) {
     let state = AppState {
         db: pool.clone(),
@@ -177,7 +177,7 @@ fn test_login_wrong_password(pool: PgPool) {
     assert_eq!(&body[..], b"Invalid username or password.");
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test]
 fn test_login_wrong_username(pool: PgPool) {
     let state = AppState {
         db: pool.clone(),
@@ -201,7 +201,7 @@ fn test_login_wrong_username(pool: PgPool) {
     assert_eq!(&body[..], b"Invalid username or password.");
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test]
 fn test_get_streamkey(pool: PgPool) {
     let state = AppState {
         db: pool.clone(),
@@ -239,7 +239,7 @@ fn test_get_streamkey(pool: PgPool) {
     )
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test]
 fn test_get_streamkey_unauthorized(pool: PgPool) {
     let state = AppState {
         db: pool.clone(),
@@ -250,7 +250,7 @@ fn test_get_streamkey_unauthorized(pool: PgPool) {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test]
 fn test_get_streamkey_no_jwt(pool: PgPool) {
     let state = AppState {
         db: pool.clone(),
@@ -271,7 +271,7 @@ fn test_get_streamkey_no_jwt(pool: PgPool) {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test]
 fn test_verify_stream_key(pool: PgPool) {
     let state = AppState {
         db: pool.clone(),
@@ -314,7 +314,7 @@ fn test_verify_stream_key(pool: PgPool) {
     assert_eq!(body["username"].as_str().unwrap(), user.username);
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test]
 fn test_verify_stream_key_unauthorized(pool: PgPool) {
     let state = AppState {
         db: pool.clone(),
