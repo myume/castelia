@@ -44,7 +44,6 @@ services:
       - "traefik.enable=true"
       - "traefik.tcp.routers.ingest-router.rule=HostSNI(`*`)"
       - "traefik.tcp.routers.ingest-router.entrypoints=rtmp"
-      - "traefik.tcp.services.ingest.loadbalancer.server.port=1935"
 
   db:
     image: postgres:18-alpine
