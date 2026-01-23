@@ -1,4 +1,4 @@
-FROM rust:1.91.0 as builder
+FROM rust:1.91.0 AS builder
 WORKDIR /app
 
 COPY . .
@@ -13,4 +13,3 @@ RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/
 COPY --from=builder /app/target/release/castelia-auth /app/castelia-auth
 
 CMD ["/app/castelia-auth"]
-

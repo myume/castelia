@@ -1,4 +1,4 @@
-FROM rust:1.91.0 as builder
+FROM rust:1.91.0 AS builder
 WORKDIR /app
 COPY . .
 RUN SQLX_OFFLINE=true cargo build --release --package castelia-ingest
