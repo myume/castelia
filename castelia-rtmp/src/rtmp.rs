@@ -21,7 +21,6 @@ use crate::{
         protocol_control::PeerBandwidth,
         router::{MessageRouter, RouteError},
     },
-    netconnection::handler::HandleError,
 };
 
 pub(crate) type Broadcasts = Arc<tokio::sync::Mutex<Box<dyn Broadcaster>>>;
@@ -173,9 +172,16 @@ impl RTMPConnection {
                         {
                             match e {
                                 RouteError::HandleNetconnectonError(
-                                    HandleError::UnsupportedCommand(command),
+                                    crate::netconnection::handler::HandleError::UnsupportedCommand(
+                                        command,
+                                    ),
                                 ) => {
                                     warn!("Unsupported Command: {command}")
+                                }
+                                RouteError::HandleNetstreamError(
+                                    crate::netstream::handler::HandleError::BroadcastNotFound,
+                                ) => {
+                                    debug!("Broadcast not found");
                                 }
                                 _ => error!("{e}"),
                             }
