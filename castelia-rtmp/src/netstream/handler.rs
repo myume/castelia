@@ -17,7 +17,7 @@ use crate::{
         },
     },
     netstream::{NetStream, NetStreamState, command::NetStreamCommand},
-    rtmp::{Broadcasts, SendQueueMessage},
+    rtmp::{Broadcasts, EventEmitter, SendQueueMessage},
 };
 
 #[derive(Error, Debug)]
@@ -253,9 +253,9 @@ impl NetStream {
     async fn handle_netstream_command<'a>(
         &mut self,
         command: NetStreamCommand<'a>,
-        _transaction_id: f64,
         send_queue: Sender<SendQueueMessage>,
         broadcaster: Broadcasts,
+        event_emitter: EventEmitter,
     ) -> Result<(), HandleError> {
         match command {
             NetStreamCommand::Play { stream_name, .. } => {
@@ -285,7 +285,8 @@ impl NetStream {
                 publishing_type,
             } => {
                 self.handle_publish(publishing_name, publishing_type, send_queue, broadcaster)
-                    .await?
+                    .await?;
+                event_emitter.lock().await.on_published().await;
             }
             NetStreamCommand::Seek { .. } => {
                 return Err(HandleError::UnsupportedCommand("seek".to_owned()));
@@ -387,17 +388,14 @@ impl NetStream {
         send_queue: Sender<SendQueueMessage>,
         broadcaster: Broadcasts,
         message_header: MessageHeader,
+        event_emitter: EventEmitter,
     ) -> Result<(), HandleError> {
         match message {
             CommandMessage::NetConnection(_) => {
                 Err(HandleError::UnsupportedCommand("NetConnection".to_owned()))
             }
-            CommandMessage::NetStreamCommand {
-                command,
-                transaction_id,
-                ..
-            } => {
-                self.handle_netstream_command(command, transaction_id, send_queue, broadcaster)
+            CommandMessage::NetStreamCommand { command, .. } => {
+                self.handle_netstream_command(command, send_queue, broadcaster, event_emitter)
                     .await
             }
             CommandMessage::Data(amf0_values) => {

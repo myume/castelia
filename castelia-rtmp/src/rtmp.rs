@@ -5,6 +5,7 @@ use std::{
 };
 
 use bytes::Bytes;
+use castelia_events::stream_events::StreamEventEmitter;
 use tokio::{
     io::{AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -24,19 +25,26 @@ use crate::{
 };
 
 pub(crate) type Broadcasts = Arc<tokio::sync::Mutex<Box<dyn Broadcaster>>>;
+pub(crate) type EventEmitter = Arc<tokio::sync::Mutex<Box<dyn StreamEventEmitter>>>;
 
 pub struct RTMPServer {
     listener: TcpListener,
     broadcaster: Broadcasts,
+    event_emitter: EventEmitter,
 }
 
 impl RTMPServer {
-    pub fn new(listener: TcpListener, authenticator: Box<dyn Authenticator>) -> Self {
+    pub fn new(
+        listener: TcpListener,
+        authenticator: Box<dyn Authenticator>,
+        event_emitter: Box<dyn StreamEventEmitter>,
+    ) -> Self {
         Self {
             listener,
             broadcaster: Arc::new(tokio::sync::Mutex::new(Box::new(
                 SingleNodeBroadcaster::new(authenticator),
             ))),
+            event_emitter: Arc::new(tokio::sync::Mutex::new(event_emitter)),
         }
     }
 
@@ -46,8 +54,9 @@ impl RTMPServer {
             debug!("Accepted connection from {addr}");
 
             let broadcaster = self.broadcaster.clone();
+            let event_emitter = self.event_emitter.clone();
             tokio::spawn(async move {
-                handle_rtmp_connection(socket, addr, broadcaster).await;
+                handle_rtmp_connection(socket, addr, broadcaster, event_emitter).await;
             });
         }
     }
@@ -60,8 +69,13 @@ impl RTMPServer {
         address =  addr.to_string()
     )
 )]
-async fn handle_rtmp_connection(socket: TcpStream, addr: SocketAddr, broadcaster: Broadcasts) {
-    let connection = RTMPConnection::new(broadcaster);
+async fn handle_rtmp_connection(
+    socket: TcpStream,
+    addr: SocketAddr,
+    broadcaster: Broadcasts,
+    event_emitter: EventEmitter,
+) {
+    let connection = RTMPConnection::new(broadcaster, event_emitter);
     if let Err(e) = connection.process(socket).await {
         match e.kind() {
             io::ErrorKind::UnexpectedEof
@@ -113,15 +127,17 @@ struct RTMPConnection {
     message_router: MessageRouter,
     connection_state: Arc<Mutex<RTMPConnectionState>>,
     broadcaster: Broadcasts,
+    event_emitter: EventEmitter,
 }
 
 impl RTMPConnection {
-    pub fn new(broadcaster: Broadcasts) -> Self {
+    pub fn new(broadcaster: Broadcasts, event_emitter: EventEmitter) -> Self {
         Self {
             chunk_handler: ChunkHandler::new(),
             message_router: MessageRouter::new(),
             connection_state: Arc::new(Mutex::new(RTMPConnectionState::default())),
             broadcaster,
+            event_emitter,
         }
     }
 
@@ -167,6 +183,7 @@ impl RTMPConnection {
                                 self.broadcaster.clone(),
                                 &mut should_exit,
                                 recent_header,
+                                self.event_emitter.clone(),
                             )
                             .await
                         {
