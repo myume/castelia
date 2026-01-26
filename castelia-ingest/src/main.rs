@@ -118,9 +118,12 @@ impl StreamEventEmitter for EventEmitter {
     }
 
     async fn on_stop(&self, stream_id: &str) {
-        let Ok(mut conn) = self.client.get_connection() else {
-            error!("Failed to establish connection with redis: {e}");
-            return;
+        let mut conn = match self.client.get_connection() {
+            Ok(conn) => conn,
+            Err(e) => {
+                error!("Failed to establish connection with redis: {e}");
+                return;
+            }
         };
 
         let event = StreamEvent::Stop {
