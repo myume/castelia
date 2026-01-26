@@ -40,10 +40,14 @@ services:
       dockerfile: castelia-ingest/Dockerfile
     environment:
       - AUTH_URL=http://auth:3000
+      - REDIS_URL=redis://redis
     labels:
       - "traefik.enable=true"
       - "traefik.tcp.routers.ingest-router.rule=HostSNI(`*`)"
       - "traefik.tcp.routers.ingest-router.entrypoints=rtmp"
+
+  redis:
+    image: redis:8.4
 
   db:
     image: postgres:18
