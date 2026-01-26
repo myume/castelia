@@ -45,7 +45,7 @@ impl NetStream {
         publishing_type: &str,
         send_queue: Sender<SendQueueMessage>,
         broadcaster: Broadcasts,
-    ) -> Result<(), HandleError> {
+    ) -> Result<String, HandleError> {
         if publishing_type != "live" {
             return Err(HandleError::NoneLiveBroadcast);
         }
@@ -95,7 +95,7 @@ impl NetStream {
             debug!("Send stream is closed, terminating stream");
         };
 
-        Ok(())
+        self.stream_id.clone().ok_or(HandleError::BroadcastNotFound)
     }
 
     async fn handle_play(
@@ -284,9 +284,10 @@ impl NetStream {
                 publishing_name,
                 publishing_type,
             } => {
-                self.handle_publish(publishing_name, publishing_type, send_queue, broadcaster)
+                let stream_id = self
+                    .handle_publish(publishing_name, publishing_type, send_queue, broadcaster)
                     .await?;
-                event_emitter.lock().await.on_published().await;
+                event_emitter.lock().await.on_published(&stream_id).await;
             }
             NetStreamCommand::Seek { .. } => {
                 return Err(HandleError::UnsupportedCommand("seek".to_owned()));

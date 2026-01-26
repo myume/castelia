@@ -114,7 +114,7 @@ impl MessageRouter {
                     if let Some(stream) = self.message_streams.delete_stream(stream_id) {
                         if let Some(stream_id) = stream.stream_id {
                             broadcaster.lock().await.delete_stream(&stream_id).await;
-                            event_emitter.lock().await.on_close_stream(&stream_id).await;
+                            event_emitter.lock().await.on_stop(&stream_id).await;
                         }
 
                         debug!("Deleted netstream {}", stream.id);
