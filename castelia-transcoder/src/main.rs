@@ -58,6 +58,8 @@ async fn main() -> anyhow::Result<()> {
 
                         let mut command = Command::new("ffmpeg");
                         command
+                            .arg("-loglevel")
+                            .arg("error")
                             .arg("-i")
                             .arg(format!("{rtmp_url}/{stream_id}"))
                             .arg("-c:v")

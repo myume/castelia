@@ -54,7 +54,7 @@ services:
       dockerfile: castelia-transcoder/Dockerfile
     environment:
       - REDIS_URL=redis://redis
-      - RUST_LOG=trace
+      # - RUST_LOG=trace
     depends_on:
       - redis
 

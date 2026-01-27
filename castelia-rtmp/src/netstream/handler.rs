@@ -192,7 +192,7 @@ impl NetStream {
             while let Ok((media_type, header, data)) = receiver.receive_data().await {
                 debug!("stream data received");
                 timestamp = header.get_timestamp().unwrap_or(timestamp);
-                timestamp += header.get_timestamp_delta().unwrap_or(0);
+                timestamp += header.get_timestamp_delta().unwrap_or(1);
                 let message = match media_type {
                     MediaType::Video => CommandMessage::Video(data),
                     MediaType::Audio => CommandMessage::Audio(data),
@@ -255,7 +255,6 @@ impl NetStream {
         command: NetStreamCommand<'a>,
         send_queue: Sender<SendQueueMessage>,
         broadcaster: Broadcasts,
-        event_emitter: EventEmitter,
     ) -> Result<(), HandleError> {
         match command {
             NetStreamCommand::Play { stream_name, .. } => {
@@ -284,10 +283,8 @@ impl NetStream {
                 publishing_name,
                 publishing_type,
             } => {
-                let stream_id = self
-                    .handle_publish(publishing_name, publishing_type, send_queue, broadcaster)
+                self.handle_publish(publishing_name, publishing_type, send_queue, broadcaster)
                     .await?;
-                event_emitter.lock().await.on_published(&stream_id).await;
             }
             NetStreamCommand::Seek { .. } => {
                 return Err(HandleError::UnsupportedCommand("seek".to_owned()));
@@ -330,6 +327,7 @@ impl NetStream {
         header: Bytes,
         media_type: MediaType,
         broadcaster: Broadcasts,
+        event_emitter: EventEmitter,
     ) -> Result<(), HandleError> {
         let Some(stream_key) = &self.stream_id else {
             return Err(HandleError::BroadcastNotFound);
@@ -362,6 +360,13 @@ impl NetStream {
             }
         }
         debug!("{media_type:?} header sent");
+
+        if self.audio_header_sent
+            && self.video_header_sent
+            && let Some(stream_id) = self.stream_id.clone()
+        {
+            event_emitter.lock().await.on_published(&stream_id).await;
+        }
 
         Ok(())
     }
@@ -396,7 +401,7 @@ impl NetStream {
                 Err(HandleError::UnsupportedCommand("NetConnection".to_owned()))
             }
             CommandMessage::NetStreamCommand { command, .. } => {
-                self.handle_netstream_command(command, send_queue, broadcaster, event_emitter)
+                self.handle_netstream_command(command, send_queue, broadcaster)
                     .await
             }
             CommandMessage::Data(amf0_values) => {
@@ -406,7 +411,7 @@ impl NetStream {
             CommandMessage::Audio(bytes) => {
                 trace!("sending audio data");
                 if !self.audio_header_sent {
-                    self.handle_media_header(bytes, MediaType::Audio, broadcaster)
+                    self.handle_media_header(bytes, MediaType::Audio, broadcaster, event_emitter)
                         .await
                 } else {
                     self.handle_media(bytes, MediaType::Audio, message_header)
@@ -417,7 +422,7 @@ impl NetStream {
             CommandMessage::Video(bytes) => {
                 trace!("sending video data");
                 if !self.video_header_sent {
-                    self.handle_media_header(bytes, MediaType::Video, broadcaster)
+                    self.handle_media_header(bytes, MediaType::Video, broadcaster, event_emitter)
                         .await
                 } else {
                     self.handle_media(bytes, MediaType::Video, message_header)
