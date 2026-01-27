@@ -82,7 +82,7 @@ impl TranscoderService {
             .arg("aac")
             .arg("-f")
             .arg("hls")
-            .arg(format!("{}/stream.m3m8", hls_output_dir.display()));
+            .arg(format!("{}/stream.m3u8", hls_output_dir.display()));
 
         let child = command.spawn().context("Failed to spawn ffmpeg process")?;
         self.processes.insert(stream_id.to_owned(), child);
