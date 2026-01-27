@@ -41,10 +41,22 @@ services:
     environment:
       - AUTH_URL=http://auth:3000
       - REDIS_URL=redis://redis
+    depends_on:
+      - redis
     labels:
       - "traefik.enable=true"
       - "traefik.tcp.routers.ingest-router.rule=HostSNI(`*`)"
       - "traefik.tcp.routers.ingest-router.entrypoints=rtmp"
+
+  transcoder:
+    build:
+      context: .
+      dockerfile: castelia-transcoder/Dockerfile
+    environment:
+      - REDIS_URL=redis://redis
+      - RUST_LOG=trace
+    depends_on:
+      - redis
 
   redis:
     image: redis:8.4

@@ -343,6 +343,15 @@ dependencies = [
 [[package]]
 name = "castelia-transcoder"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "castelia-events",
+ "redis",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "cc"

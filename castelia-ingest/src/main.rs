@@ -27,7 +27,10 @@ async fn main() -> anyhow::Result<()> {
     RTMPServer::new(
         listener,
         Box::new(ApiAuth::new(&auth_url)),
-        Box::new(EventEmitter::new(addr).context("Failed to initialize event emitter")?),
+        Box::new(
+            EventEmitter::new("rtmp://ingest:1935/live")
+                .context("Failed to initialize event emitter")?,
+        ),
     )
     .run()
     .await?;
