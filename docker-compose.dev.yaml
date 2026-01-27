@@ -34,6 +34,18 @@ services:
       - "traefik.http.middlewares.auth-strip.stripprefix.prefixes=/auth"
       - "traefik.http.routers.auth.middlewares=auth-strip"
 
+  broadcast:
+    build:
+      context: .
+      dockerfile: castelia-broadcast/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - HLS_OUTPUT_DIR=/hls
+      - RUST_LOG=trace
+    volumes:
+      - hls:/hls
+
   ingest:
     build: 
       context: .
