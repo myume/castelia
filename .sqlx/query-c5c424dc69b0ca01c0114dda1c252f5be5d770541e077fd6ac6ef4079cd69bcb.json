@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO broadcasts (channel_name) VALUES($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c5c424dc69b0ca01c0114dda1c252f5be5d770541e077fd6ac6ef4079cd69bcb"
+}
