@@ -54,9 +54,12 @@ services:
       dockerfile: castelia-transcoder/Dockerfile
     environment:
       - REDIS_URL=redis://redis
+      - HLS_OUTPUT_DIR=/hls
       - RUST_LOG=trace
     depends_on:
       - redis
+    volumes:
+      - hls:/hls
 
   redis:
     image: redis:8.4
@@ -74,3 +77,4 @@ services:
 
 volumes:
   db:
+  hls:

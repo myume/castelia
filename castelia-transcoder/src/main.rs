@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, env, path::PathBuf};
 
 use anyhow::{Context, anyhow};
 use castelia_events::stream_events::{STREAM_EVENT_KEY, StreamEvent};
@@ -6,7 +6,10 @@ use redis::{
     Commands,
     streams::{StreamReadOptions, StreamReadReply},
 };
-use tokio::process::{Child, Command};
+use tokio::{
+    fs::{create_dir, remove_dir},
+    process::{Child, Command},
+};
 use tracing::{info, trace, warn};
 
 const TRANSCODER_GROUP: &str = "transcoders";
@@ -32,10 +35,12 @@ async fn main() -> anyhow::Result<()> {
 
     let opts = StreamReadOptions::default()
         .group(TRANSCODER_GROUP, "transcoder_group")
-        .count(10)
         .block(5000);
 
     let mut ffmpeg_processes: HashMap<String, Child> = HashMap::new();
+
+    let output_dir = env::var("HLS_OUTPUT_DIR").unwrap_or("./".to_string());
+    info!("Transcoder service started.");
 
     loop {
         let reply: StreamReadReply = conn.xread_options(&[STREAM_EVENT_KEY], &[">"], &opts)?;
@@ -62,6 +67,12 @@ async fn main() -> anyhow::Result<()> {
                             existing_process.kill().await?;
                         }
 
+                        let hls_output_dir = PathBuf::from(format!("{output_dir}/{stream_id}"));
+                        if hls_output_dir.exists() {
+                            remove_dir(&hls_output_dir).await?;
+                        }
+                        create_dir(&hls_output_dir).await?;
+
                         let mut command = Command::new("ffmpeg");
                         command
                             .arg("-loglevel")
@@ -74,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
                             .arg("aac")
                             .arg("-f")
                             .arg("hls")
-                            .arg("stream.m3m8");
+                            .arg(format!("{}/stream.m3m8", hls_output_dir.display()));
 
                         let child = command.spawn().context("Failed to spawn ffmpeg process")?;
                         ffmpeg_processes.insert(stream_id, child);
@@ -89,6 +100,12 @@ async fn main() -> anyhow::Result<()> {
                             .kill()
                             .await
                             .context("Could not kill ffmpeg process")?;
+
+                        let hls_output_dir = PathBuf::from(format!("{output_dir}/{stream_id}"));
+                        if hls_output_dir.exists() {
+                            remove_dir(&hls_output_dir).await?;
+                        }
+
                         info!("Successfully stopped transcoding for stream: {stream_id}")
                     }
                 };
