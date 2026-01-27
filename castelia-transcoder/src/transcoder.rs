@@ -6,12 +6,13 @@ use std::{
 use anyhow::{Context, Result};
 use castelia_events::stream_events::{STREAM_EVENT_KEY, StreamEvent};
 use redis::{
-    Client, Commands,
+    Client, Commands, Connection,
     streams::{StreamReadOptions, StreamReadReply},
 };
 use tokio::{
     fs::{create_dir, remove_dir_all},
     process::{Child, Command},
+    signal,
 };
 use tracing::{error, info, instrument, trace, warn};
 
@@ -89,40 +90,88 @@ impl TranscoderService {
         Ok(())
     }
 
+    async fn process_events(
+        &mut self,
+        conn: &mut Connection,
+        opts: &StreamReadOptions,
+    ) -> anyhow::Result<()> {
+        let reply: StreamReadReply = conn.xread_options(&[STREAM_EVENT_KEY], &[">"], opts)?;
+
+        for stream in reply.keys {
+            for entry in stream.ids {
+                trace!("{:?}", &entry);
+                let Some(payload) = entry.map.get("data") else {
+                    error!("Missing payload on stream event");
+                    continue;
+                };
+                let payload: String = redis::from_redis_value(payload.clone())?;
+                let event: StreamEvent = serde_json::from_str(&payload)?;
+                match event {
+                    StreamEvent::Start {
+                        stream_id,
+                        rtmp_url,
+                    } => {
+                        self.spawn_transcoder(&stream_id, &rtmp_url).await?;
+                    }
+                    StreamEvent::Stop { stream_id } => {
+                        self.stop_transcoder(&stream_id).await?;
+                    }
+                };
+
+                let _: () = conn.xack(STREAM_EVENT_KEY, TRANSCODER_GROUP, &[&entry.id])?;
+            }
+        }
+
+        Ok(())
+    }
+
     #[instrument(skip_all)]
+    async fn clean_up(&mut self) -> anyhow::Result<()> {
+        for process in self.processes.values_mut() {
+            process
+                .kill()
+                .await
+                .context("Failed to terminate transcoder process")?
+        }
+        info!("Terminated {} processes", self.processes.len());
+
+        for hls_dir in self.output_dir.read_dir()? {
+            remove_dir_all(hls_dir?.path())
+                .await
+                .context("Failed to remove HLS dir")?;
+        }
+        info!("Cleaned up output dir {}", self.output_dir.display());
+
+        Ok(())
+    }
+
+    #[instrument(skip_all, name = "transcoder_service")]
     pub async fn start(&mut self) -> Result<()> {
         info!("Transcoder service started.");
         let mut conn = self.client.get_connection()?;
         let opts = StreamReadOptions::default()
             .group(TRANSCODER_GROUP, "transcoder_group")
             .block(5000);
+
+        #[allow(clippy::expect_used)]
+        let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install signal handler");
+
         loop {
-            let reply: StreamReadReply = conn.xread_options(&[STREAM_EVENT_KEY], &[">"], &opts)?;
-
-            for stream in reply.keys {
-                for entry in stream.ids {
-                    trace!("{:?}", &entry);
-                    let Some(payload) = entry.map.get("data") else {
-                        error!("Missing payload on stream event");
-                        continue;
-                    };
-                    let payload: String = redis::from_redis_value(payload.clone())?;
-                    let event: StreamEvent = serde_json::from_str(&payload)?;
-                    match event {
-                        StreamEvent::Start {
-                            stream_id,
-                            rtmp_url,
-                        } => {
-                            self.spawn_transcoder(&stream_id, &rtmp_url).await?;
-                        }
-                        StreamEvent::Stop { stream_id } => {
-                            self.stop_transcoder(&stream_id).await?;
-                        }
-                    };
-
-                    let _: () = conn.xack(STREAM_EVENT_KEY, TRANSCODER_GROUP, &[&entry.id])?;
+            tokio::select! {
+                result = self.process_events(&mut conn, &opts) => {
+                    if let Err(e) = result {
+                        error!("Failed to process event: {e}");
+                    }
                 }
-            }
+                _ = sigterm.recv() => {
+                    info!("Shutdown signal received. Cleaning up...");
+                    self.clean_up().await.context("Failure while cleaning up")?;
+                    break;
+
+                }
+            };
         }
+        Ok(())
     }
 }

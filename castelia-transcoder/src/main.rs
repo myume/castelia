@@ -3,7 +3,7 @@ use std::{env, path::PathBuf};
 use anyhow::{Context, anyhow};
 use castelia_events::stream_events::STREAM_EVENT_KEY;
 use redis::Commands;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::transcoder::TranscoderService;
 
@@ -11,10 +11,7 @@ mod transcoder;
 
 const TRANSCODER_GROUP: &str = "transcoders";
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
-
+async fn init_redis() -> anyhow::Result<redis::Client> {
     let client = redis::Client::open(env::var("REDIS_URL").context("REDIS_URL is missing")?)
         .context("Failed to initialize redis client")?;
 
@@ -29,9 +26,23 @@ async fn main() -> anyhow::Result<()> {
         }
         Err(e) => return Err(anyhow!(e)),
     };
+    Ok(client)
+}
 
-    let output_dir = env::var("HLS_OUTPUT_DIR").unwrap_or("./".to_string());
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
+
+    let client = init_redis().await?;
+
+    let output_dir = env::var("HLS_OUTPUT_DIR").unwrap_or_else(|_| {
+        warn!("HLS_OUTPUT_DIR not found, defaulting to current dir");
+        "./".to_string()
+    });
 
     let mut transcoder_service = TranscoderService::new(&PathBuf::from(output_dir), client);
-    transcoder_service.start().await
+    transcoder_service.start().await?;
+
+    info!("Service exited gracefully");
+    Ok(())
 }
