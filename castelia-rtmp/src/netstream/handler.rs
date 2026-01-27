@@ -17,7 +17,7 @@ use crate::{
         },
     },
     netstream::{NetStream, NetStreamState, command::NetStreamCommand},
-    rtmp::{Broadcasts, SendQueueMessage},
+    rtmp::{Broadcasts, EventEmitter, SendQueueMessage},
 };
 
 #[derive(Error, Debug)]
@@ -45,7 +45,7 @@ impl NetStream {
         publishing_type: &str,
         send_queue: Sender<SendQueueMessage>,
         broadcaster: Broadcasts,
-    ) -> Result<(), HandleError> {
+    ) -> Result<String, HandleError> {
         if publishing_type != "live" {
             return Err(HandleError::NoneLiveBroadcast);
         }
@@ -95,7 +95,7 @@ impl NetStream {
             debug!("Send stream is closed, terminating stream");
         };
 
-        Ok(())
+        self.stream_id.clone().ok_or(HandleError::BroadcastNotFound)
     }
 
     async fn handle_play(
@@ -192,7 +192,7 @@ impl NetStream {
             while let Ok((media_type, header, data)) = receiver.receive_data().await {
                 debug!("stream data received");
                 timestamp = header.get_timestamp().unwrap_or(timestamp);
-                timestamp += header.get_timestamp_delta().unwrap_or(0);
+                timestamp += header.get_timestamp_delta().unwrap_or(1);
                 let message = match media_type {
                     MediaType::Video => CommandMessage::Video(data),
                     MediaType::Audio => CommandMessage::Audio(data),
@@ -253,7 +253,6 @@ impl NetStream {
     async fn handle_netstream_command<'a>(
         &mut self,
         command: NetStreamCommand<'a>,
-        _transaction_id: f64,
         send_queue: Sender<SendQueueMessage>,
         broadcaster: Broadcasts,
     ) -> Result<(), HandleError> {
@@ -285,7 +284,7 @@ impl NetStream {
                 publishing_type,
             } => {
                 self.handle_publish(publishing_name, publishing_type, send_queue, broadcaster)
-                    .await?
+                    .await?;
             }
             NetStreamCommand::Seek { .. } => {
                 return Err(HandleError::UnsupportedCommand("seek".to_owned()));
@@ -328,6 +327,7 @@ impl NetStream {
         header: Bytes,
         media_type: MediaType,
         broadcaster: Broadcasts,
+        event_emitter: EventEmitter,
     ) -> Result<(), HandleError> {
         let Some(stream_key) = &self.stream_id else {
             return Err(HandleError::BroadcastNotFound);
@@ -361,6 +361,13 @@ impl NetStream {
         }
         debug!("{media_type:?} header sent");
 
+        if self.audio_header_sent
+            && self.video_header_sent
+            && let Some(stream_id) = self.stream_id.clone()
+        {
+            event_emitter.lock().await.on_published(&stream_id).await;
+        }
+
         Ok(())
     }
 
@@ -387,17 +394,14 @@ impl NetStream {
         send_queue: Sender<SendQueueMessage>,
         broadcaster: Broadcasts,
         message_header: MessageHeader,
+        event_emitter: EventEmitter,
     ) -> Result<(), HandleError> {
         match message {
             CommandMessage::NetConnection(_) => {
                 Err(HandleError::UnsupportedCommand("NetConnection".to_owned()))
             }
-            CommandMessage::NetStreamCommand {
-                command,
-                transaction_id,
-                ..
-            } => {
-                self.handle_netstream_command(command, transaction_id, send_queue, broadcaster)
+            CommandMessage::NetStreamCommand { command, .. } => {
+                self.handle_netstream_command(command, send_queue, broadcaster)
                     .await
             }
             CommandMessage::Data(amf0_values) => {
@@ -407,7 +411,7 @@ impl NetStream {
             CommandMessage::Audio(bytes) => {
                 trace!("sending audio data");
                 if !self.audio_header_sent {
-                    self.handle_media_header(bytes, MediaType::Audio, broadcaster)
+                    self.handle_media_header(bytes, MediaType::Audio, broadcaster, event_emitter)
                         .await
                 } else {
                     self.handle_media(bytes, MediaType::Audio, message_header)
@@ -418,7 +422,7 @@ impl NetStream {
             CommandMessage::Video(bytes) => {
                 trace!("sending video data");
                 if !self.video_header_sent {
-                    self.handle_media_header(bytes, MediaType::Video, broadcaster)
+                    self.handle_media_header(bytes, MediaType::Video, broadcaster, event_emitter)
                         .await
                 } else {
                     self.handle_media(bytes, MediaType::Video, message_header)

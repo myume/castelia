@@ -12,7 +12,7 @@ use crate::{
     messages::{Message, command::CommandMessage},
     netconnection::{self, NetConnection},
     netstream::{self, NetStream, command::NetStreamCommand},
-    rtmp::{Broadcasts, RTMPConnectionState, SendQueueMessage},
+    rtmp::{Broadcasts, EventEmitter, RTMPConnectionState, SendQueueMessage},
 };
 
 #[derive(Error, Debug)]
@@ -86,6 +86,7 @@ impl MessageRouter {
         broadcaster: Broadcasts,
         should_exit: &mut bool,
         message_header: MessageHeader,
+        event_emitter: EventEmitter,
     ) -> Result<(), RouteError> {
         match message {
             Message::Protocol(protocol_control_message) => {
@@ -113,6 +114,7 @@ impl MessageRouter {
                     if let Some(stream) = self.message_streams.delete_stream(stream_id) {
                         if let Some(stream_id) = stream.stream_id {
                             broadcaster.lock().await.delete_stream(&stream_id).await;
+                            event_emitter.lock().await.on_stop(&stream_id).await;
                         }
 
                         debug!("Deleted netstream {}", stream.id);
@@ -144,7 +146,13 @@ impl MessageRouter {
                     };
 
                     stream
-                        .handle_message(command_message, send_queue, broadcaster, message_header)
+                        .handle_message(
+                            command_message,
+                            send_queue,
+                            broadcaster,
+                            message_header,
+                            event_emitter,
+                        )
                         .await?;
                 }
             }

@@ -36,10 +36,26 @@ services:
       dockerfile: castelia-ingest/Dockerfile
     environment:
       - AUTH_URL=http://auth:3000
+      - REDIS_URL=redis://redis
     labels:
       - "traefik.enable=true"
       - "traefik.tcp.routers.ingest-router.rule=HostSNI(`*`)"
       - "traefik.tcp.routers.ingest-router.entrypoints=rtmp"
+
+  transcoder:
+    build:
+      context: .
+      dockerfile: castelia-transcoder/Dockerfile
+    environment:
+      - REDIS_URL=redis://redis
+      - HLS_OUTPUT_DIR=/hls
+    depends_on:
+      - redis
+    volumes:
+      - hls:/hls
+
+  redis:
+    image: redis:8.4
 
   db:
     image: postgres:18
@@ -52,3 +68,4 @@ services:
 
 volumes:
   db:
+  hls:
