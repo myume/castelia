@@ -6,7 +6,7 @@ use redis::{
     Commands,
     streams::{StreamReadOptions, StreamReadReply},
 };
-use tokio::process::Command;
+use tokio::process::{Child, Command};
 use tracing::{info, trace, warn};
 
 const TRANSCODER_GROUP: &str = "transcoders";
@@ -35,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
         .count(10)
         .block(5000);
 
-    let mut ffmpeg_processes = HashMap::new();
+    let mut ffmpeg_processes: HashMap<String, Child> = HashMap::new();
 
     loop {
         let reply: StreamReadReply = conn.xread_options(&[STREAM_EVENT_KEY], &[">"], &opts)?;
@@ -55,6 +55,12 @@ async fn main() -> anyhow::Result<()> {
                         rtmp_url,
                     } => {
                         info!("Starting transcoder for stream: {stream_id}");
+                        if let Some(mut existing_process) = ffmpeg_processes.remove(&stream_id) {
+                            info!(
+                                "Existing transcoder found for stream \"{stream_id}\", terminating and restarting..."
+                            );
+                            existing_process.kill().await?;
+                        }
 
                         let mut command = Command::new("ffmpeg");
                         command
@@ -70,16 +76,16 @@ async fn main() -> anyhow::Result<()> {
                             .arg("hls")
                             .arg("stream.m3m8");
 
-                        let handle = command.spawn().context("Failed to spawn ffmpeg process")?;
-                        ffmpeg_processes.insert(stream_id, handle);
+                        let child = command.spawn().context("Failed to spawn ffmpeg process")?;
+                        ffmpeg_processes.insert(stream_id, child);
                     }
                     StreamEvent::Stop { stream_id } => {
                         info!("Stopping transcoder for stream: {stream_id}");
-                        let Some(mut handle) = ffmpeg_processes.remove(&stream_id) else {
+                        let Some(mut child) = ffmpeg_processes.remove(&stream_id) else {
                             warn!("transcoder has already been stopped.");
                             continue;
                         };
-                        handle
+                        child
                             .kill()
                             .await
                             .context("Could not kill ffmpeg process")?;

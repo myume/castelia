@@ -42,6 +42,15 @@ services:
       - "traefik.tcp.routers.ingest-router.rule=HostSNI(`*`)"
       - "traefik.tcp.routers.ingest-router.entrypoints=rtmp"
 
+  transcoder:
+    build:
+      context: .
+      dockerfile: castelia-transcoder/Dockerfile
+    environment:
+      - REDIS_URL=redis://redis
+    depends_on:
+      - redis
+
   redis:
     image: redis:8.4
 
