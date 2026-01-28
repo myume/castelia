@@ -111,7 +111,9 @@ async fn validate_jwt(
         .map_err(|e| {
             error!("Failed to send auth request");
             e.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
-        })?;
+        })?
+        .error_for_status()
+        .map_err(|e| e.status().unwrap_or(StatusCode::UNAUTHORIZED))?;
 
     let claims = res.json().await.map_err(|e| {
         error!("Failed to deserialize claims: {e}");
@@ -252,13 +254,13 @@ async fn stop_broadcast(
         return status;
     }
     if let Err(e) = sqlx::query!(
-        "UPDATE broadcasts 
+        "UPDATE broadcasts
         SET status = CASE 
             WHEN status <> 'offline' THEN 'unpublished'
             ELSE status
         END, 
         start_time = $1 WHERE channel_name = $2",
-        Utc::now(),
+        None as Option<DateTime<Utc>>,
         channel_name
     )
     .execute(&state.db)
