@@ -27,12 +27,18 @@ pub async fn handle_events(pool: Pool<sqlx::Postgres>) -> anyhow::Result<()> {
         }
         Err(e) => return Err(anyhow!(e)),
     };
-    let opts = StreamReadOptions::default()
-        .group(BROADCAST_GROUP, "broadcast-receiver")
-        .block(5000);
 
+    info!("Initialized event handler");
     loop {
-        let reply: StreamReadReply = conn.xread_options(&[STREAM_EVENT_KEY], &[">"], &opts)?;
+        let mut con = client.get_connection()?;
+        let reply: StreamReadReply = tokio::task::spawn_blocking(move || {
+            let opts = StreamReadOptions::default()
+                .group(BROADCAST_GROUP, "broadcast-receiver")
+                .block(5000);
+
+            con.xread_options(&[STREAM_EVENT_KEY], &[">"], &opts)
+        })
+        .await??;
 
         for stream in reply.keys {
             for entry in stream.ids {
@@ -44,7 +50,7 @@ pub async fn handle_events(pool: Pool<sqlx::Postgres>) -> anyhow::Result<()> {
                 let event: StreamEvent = serde_json::from_str(&payload)?;
                 match event {
                     StreamEvent::Start { stream_id, .. } => {
-                        debug!("broadcast is live for \"{stream_id}\"");
+                        debug!("Broadcast for \"{stream_id}\" is 'LIVE'");
                         sqlx::query!(
                             "UPDATE broadcasts SET status = CASE 
                                 WHEN status = 'offline' THEN 'live' 
@@ -57,7 +63,7 @@ pub async fn handle_events(pool: Pool<sqlx::Postgres>) -> anyhow::Result<()> {
                         .await?
                     }
                     StreamEvent::Stop { stream_id } => {
-                        debug!("broadcast is now offline for \"{stream_id}\"");
+                        debug!("Broadcast for \"{stream_id}\" is 'OFFLINE'");
                         sqlx::query!(
                             "UPDATE broadcasts SET status = 'offline', start_time = NULL WHERE channel_name = $1",
                             stream_id
