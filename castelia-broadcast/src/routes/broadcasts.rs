@@ -1,11 +1,13 @@
 use axum::{
     Json, Router,
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
 };
+use castelia_auth::routes::Claims;
 use chrono::{DateTime, Utc};
+use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 use tower_http::services::ServeDir;
@@ -65,8 +67,14 @@ enum GetUserError {
     Unretrievable,
     NotFound(String),
 }
-async fn user_exists(auth_url: &str, channel_name: &str) -> Result<(), GetUserError> {
-    let res = reqwest::get(format!("{auth_url}/user/{channel_name}"))
+async fn user_exists(
+    auth_url: &str,
+    channel_name: &str,
+    client: &reqwest::Client,
+) -> Result<(), GetUserError> {
+    let res = client
+        .get(format!("{auth_url}/user/{channel_name}"))
+        .send()
         .await
         .map_err(|_| GetUserError::Unretrievable)?;
     if res.status().is_server_error() {
@@ -88,11 +96,62 @@ pub fn router(hls_dir: &std::path::Path) -> Router<AppState> {
         .nest_service("/broadcasts/hls", ServeDir::new(hls_dir))
 }
 
+async fn validate_jwt(
+    auth_url: &str,
+    authorization: &HeaderValue,
+    client: &reqwest::Client,
+) -> Result<Claims, StatusCode> {
+    let res = client
+        .get(format!("{auth_url}/jwt"))
+        .header(AUTHORIZATION, authorization)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Failed to send auth request");
+            e.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+        })?;
+
+    let claims = res.json().await.map_err(|e| {
+        error!("Failed to deserialize claims: {e}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(claims)
+}
+
+async fn authorize_operation(
+    auth_url: &str,
+    channel_name: &str,
+    headers: &HeaderMap,
+    client: &reqwest::Client,
+) -> StatusCode {
+    let Some(authorization) = headers.get(AUTHORIZATION) else {
+        return StatusCode::UNAUTHORIZED;
+    };
+
+    match validate_jwt(auth_url, authorization, client).await {
+        Ok(claims) => {
+            if claims.username != channel_name {
+                return StatusCode::UNAUTHORIZED;
+            }
+        }
+        Err(status) => return status,
+    }
+
+    StatusCode::OK
+}
+
 async fn update_broadcast(
     State(state): State<AppState>,
     Path(channel_name): Path<String>,
+    headers: HeaderMap,
     Json(req): Json<UpdateBroadcast>,
 ) -> Response {
+    let status = authorize_operation(&state.auth_url, &channel_name, &headers, &state.client).await;
+    if !status.is_success() {
+        return status.into_response();
+    }
+
     let broadcast = match get_broadcast(State(state.clone()), Path(channel_name.clone())).await {
         Ok(Json(broadcast)) => broadcast,
         Err(e) => return e.into_response(),
@@ -119,7 +178,7 @@ async fn get_broadcast(
     State(state): State<AppState>,
     Path(channel_name): Path<String>,
 ) -> Result<Json<Broadcast>, GetBroadcastError> {
-    if let Err(e) = user_exists(&state.auth_url, &channel_name).await {
+    if let Err(e) = user_exists(&state.auth_url, &channel_name, &state.client).await {
         return Err(match e {
             GetUserError::Unretrievable => GetBroadcastError::UserUnretrievable,
             GetUserError::NotFound(username) => GetBroadcastError::UserNotFound(username),

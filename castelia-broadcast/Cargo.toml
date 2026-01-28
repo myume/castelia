@@ -4,6 +4,8 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
+castelia-auth = { path = "../castelia-auth", version = "0.1.0" }
+
 axum.workspace = true
 anyhow.workspace = true
 tracing.workspace = true

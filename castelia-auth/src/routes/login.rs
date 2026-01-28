@@ -88,6 +88,7 @@ pub async fn login(
     let claims = Claims {
         sub: uuid::Uuid::parse_str(&user.id)?,
         exp: exp.timestamp() as usize,
+        username: login.username,
     };
 
     let access_token = jsonwebtoken::encode(

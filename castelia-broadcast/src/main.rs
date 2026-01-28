@@ -11,8 +11,13 @@ async fn init_state() -> anyhow::Result<AppState> {
         .connect(&env::var("DATABASE_URL")?)
         .await?;
     let auth_url = env::var("AUTH_URL")?;
+    let client = reqwest::Client::new();
 
-    Ok(AppState { db: pool, auth_url })
+    Ok(AppState {
+        db: pool,
+        auth_url,
+        client,
+    })
 }
 
 #[tokio::main]

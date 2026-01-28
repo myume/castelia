@@ -10,6 +10,7 @@ mod routes;
 pub struct AppState {
     pub db: Pool<sqlx::Postgres>,
     pub auth_url: String,
+    pub client: reqwest::Client,
 }
 
 pub fn app(state: AppState, hls_dir: &Path) -> Router {
