@@ -15,7 +15,7 @@ pub struct AppState {
 }
 
 pub fn app(state: AppState, hls_dir: &Path) -> Router {
-    routes::router(hls_dir)
+    routes::router(hls_dir, &state)
         .with_state(state)
         .layer(TraceLayer::new_for_http())
 }

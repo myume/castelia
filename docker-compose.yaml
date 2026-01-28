@@ -44,6 +44,9 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.broadcasts.rule=PathPrefix(`/broadcasts/`)"
+    depends_on:
+      - redis
+      - db
 
   ingest:
     build: 
@@ -56,6 +59,8 @@ services:
       - "traefik.enable=true"
       - "traefik.tcp.routers.ingest-router.rule=HostSNI(`*`)"
       - "traefik.tcp.routers.ingest-router.entrypoints=rtmp"
+    depends_on:
+      - redis
 
   transcoder:
     build:

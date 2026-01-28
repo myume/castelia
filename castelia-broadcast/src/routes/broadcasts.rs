@@ -1,7 +1,8 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Request, State},
     http::{HeaderMap, HeaderValue, StatusCode},
+    middleware::Next,
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -10,6 +11,7 @@ use chrono::{DateTime, Utc};
 use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;
+use tower::ServiceBuilder;
 use tower_http::services::ServeDir;
 use tracing::{debug, error};
 
@@ -87,7 +89,14 @@ async fn user_exists(
     Ok(())
 }
 
-pub fn router(hls_dir: &std::path::Path) -> Router<AppState> {
+pub fn router(hls_dir: &std::path::Path, state: &AppState) -> Router<AppState> {
+    let hls_server = ServiceBuilder::new()
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            validate_broadcast,
+        ))
+        .service(ServeDir::new(hls_dir));
+
     Router::new()
         .route("/broadcasts/{channel}/publish", post(start_broadcast))
         .route("/broadcasts/{channel}/unpublish", post(stop_broadcast))
@@ -95,7 +104,34 @@ pub fn router(hls_dir: &std::path::Path) -> Router<AppState> {
             "/broadcasts/{channel}",
             get(get_broadcast).patch(update_broadcast),
         )
-        .nest_service("/broadcasts/hls", ServeDir::new(hls_dir))
+        .nest_service("/broadcasts/hls", hls_server)
+}
+
+async fn validate_broadcast(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let parts = request.uri().path().split("/").collect::<Vec<&str>>();
+    let channel_name = parts.get(1).ok_or(StatusCode::NOT_FOUND)?;
+
+    let broadcast = sqlx::query!(
+        "SELECT status, private FROM broadcasts WHERE channel_name = $1",
+        channel_name
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        error!("Failed to retrieve broadcast: {e}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .ok_or(StatusCode::NOT_FOUND)?;
+
+    if broadcast.private || broadcast.status != "published" {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    Ok(next.run(request).await)
 }
 
 async fn validate_jwt(

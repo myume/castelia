@@ -13,6 +13,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tokio.workspace = true
 tower-http = { workspace = true, features = ["fs"]}
+tower.workspace = true
 chrono.workspace = true
 sqlx = { workspace = true, features = ["chrono"] }
 serde.workspace = true
