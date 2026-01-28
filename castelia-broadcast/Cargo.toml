@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 castelia-auth = { path = "../castelia-auth", version = "0.1.0" }
+castelia-events = { path = "../castelia-events", version = "0.1.0" }
 
 axum.workspace = true
 anyhow.workspace = true
@@ -15,8 +16,10 @@ tower-http = { workspace = true, features = ["fs"]}
 chrono.workspace = true
 sqlx = { workspace = true, features = ["chrono"] }
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 reqwest.workspace = true
+redis.workspace = true
 
 [lints]
 workspace = true

@@ -229,8 +229,23 @@ async fn start_broadcast(
     if !status.is_success() {
         return status;
     }
+
+    let Ok(broadcast) = sqlx::query!(
+        "SELECT status FROM broadcasts WHERE channel_name = $1",
+        channel_name
+    )
+    .fetch_one(&state.db)
+    .await
+    else {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    };
+
+    if broadcast.status == "offline" {
+        return StatusCode::BAD_REQUEST;
+    }
+
     if let Err(e) = sqlx::query!(
-        "UPDATE broadcasts SET status = 'live', start_time = $1 WHERE channel_name = $2",
+        "UPDATE broadcasts SET status = 'published', start_time = $1 WHERE channel_name = $2",
         Utc::now(),
         channel_name
     )
@@ -253,14 +268,28 @@ async fn stop_broadcast(
     if !status.is_success() {
         return status;
     }
+
+    let Ok(broadcast) = sqlx::query!(
+        "SELECT status FROM broadcasts WHERE channel_name = $1",
+        channel_name
+    )
+    .fetch_one(&state.db)
+    .await
+    else {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    };
+
+    if broadcast.status != "published" {
+        return StatusCode::BAD_REQUEST;
+    }
+
     if let Err(e) = sqlx::query!(
         "UPDATE broadcasts
         SET status = CASE 
             WHEN status <> 'offline' THEN 'unpublished'
             ELSE status
         END, 
-        start_time = $1 WHERE channel_name = $2",
-        None as Option<DateTime<Utc>>,
+        start_time = NULL WHERE channel_name = $1",
         channel_name
     )
     .execute(&state.db)

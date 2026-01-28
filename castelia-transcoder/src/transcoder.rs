@@ -150,7 +150,7 @@ impl TranscoderService {
         info!("Transcoder service started.");
         let mut conn = self.client.get_connection()?;
         let opts = StreamReadOptions::default()
-            .group(TRANSCODER_GROUP, "transcoder_group")
+            .group(TRANSCODER_GROUP, "transcoder")
             .block(5000);
 
         #[allow(clippy::expect_used)]

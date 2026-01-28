@@ -4,6 +4,7 @@ use axum::Router;
 use sqlx::Pool;
 use tower_http::trace::TraceLayer;
 
+pub mod event_handler;
 mod routes;
 
 #[derive(Clone)]

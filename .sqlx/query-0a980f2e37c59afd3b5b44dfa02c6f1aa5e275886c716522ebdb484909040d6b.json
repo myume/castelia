@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE broadcasts SET status = 'live', start_time = $1 WHERE channel_name = $2",
+  "query": "UPDATE broadcasts SET status = 'published', start_time = $1 WHERE channel_name = $2",
   "describe": {
     "columns": [],
     "parameters": {
@@ -11,5 +11,5 @@
     },
     "nullable": []
   },
-  "hash": "7f83b1315251e989808c364f32fd72fb8d1c81fe5dcb98e695c63b3b67a74b73"
+  "hash": "0a980f2e37c59afd3b5b44dfa02c6f1aa5e275886c716522ebdb484909040d6b"
 }
