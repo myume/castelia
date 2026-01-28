@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use castelia_auth::routes::Claims;
 use chrono::{DateTime, Utc};
@@ -89,6 +89,8 @@ async fn user_exists(
 
 pub fn router(hls_dir: &std::path::Path) -> Router<AppState> {
     Router::new()
+        .route("/broadcasts/{channel}/publish", post(start_broadcast))
+        .route("/broadcasts/{channel}/unpublish", post(stop_broadcast))
         .route(
             "/broadcasts/{channel}",
             get(get_broadcast).patch(update_broadcast),
@@ -214,4 +216,57 @@ async fn get_broadcast(
     tx.commit().await?;
 
     Ok(Json(broadcast))
+}
+
+async fn start_broadcast(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(channel_name): Path<String>,
+) -> StatusCode {
+    let status = authorize_operation(&state.auth_url, &channel_name, &headers, &state.client).await;
+    if !status.is_success() {
+        return status;
+    }
+    if let Err(e) = sqlx::query!(
+        "UPDATE broadcasts SET status = 'live', start_time = $1 WHERE channel_name = $2",
+        Utc::now(),
+        channel_name
+    )
+    .execute(&state.db)
+    .await
+    {
+        error!("Failed to update broadcast status: {e}");
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    };
+
+    StatusCode::OK
+}
+
+async fn stop_broadcast(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(channel_name): Path<String>,
+) -> StatusCode {
+    let status = authorize_operation(&state.auth_url, &channel_name, &headers, &state.client).await;
+    if !status.is_success() {
+        return status;
+    }
+    if let Err(e) = sqlx::query!(
+        "UPDATE broadcasts 
+        SET status = CASE 
+            WHEN status <> 'offline' THEN 'unpublished'
+            ELSE status
+        END, 
+        start_time = $1 WHERE channel_name = $2",
+        Utc::now(),
+        channel_name
+    )
+    .execute(&state.db)
+    .await
+    {
+        error!("Failed to update broadcast status: {e}");
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    };
+
+    StatusCode::OK
 }
