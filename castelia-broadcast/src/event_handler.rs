@@ -8,10 +8,11 @@ use redis::{
     streams::{StreamReadOptions, StreamReadReply},
 };
 use sqlx::Pool;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, instrument};
 
 const BROADCAST_GROUP: &str = "broadcasts";
 
+#[instrument(skip_all, name = "Broadcast event handler")]
 pub async fn handle_events(pool: Pool<sqlx::Postgres>) -> anyhow::Result<()> {
     let client = redis::Client::open(env::var("REDIS_URL").context("REDIS_URL is missing")?)
         .context("Failed to initialize redis client")?;

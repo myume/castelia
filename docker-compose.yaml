@@ -41,6 +41,9 @@ services:
       - REDIS_URL=redis://redis
     volumes:
       - hls:/hls
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.broadcasts.rule=PathPrefix(`/broadcasts/`)"
 
   ingest:
     build: 
@@ -65,9 +68,6 @@ services:
       - redis
     volumes:
       - hls:/hls
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.broadcasts.rule=PathPrefix(`/broadcasts/`)"
 
   redis:
     image: redis:8.4
