@@ -7,7 +7,7 @@ use redis::{
     streams::{StreamReadOptions, StreamReadReply},
 };
 use sqlx::Pool;
-use tracing::{debug, error, info, instrument};
+use tracing::{error, info, instrument};
 
 const BROADCAST_GROUP: &str = "broadcasts";
 
@@ -50,7 +50,6 @@ pub async fn handle_events(pool: Pool<sqlx::Postgres>) -> anyhow::Result<()> {
                 let event: StreamEvent = serde_json::from_str(&payload)?;
                 match event {
                     StreamEvent::Start { stream_id, .. } => {
-                        debug!("Broadcast for \"{stream_id}\" is 'LIVE'");
                         sqlx::query!(
                             "UPDATE broadcasts SET status = CASE 
                                 WHEN status = 'offline' THEN 'live' 
@@ -60,16 +59,17 @@ pub async fn handle_events(pool: Pool<sqlx::Postgres>) -> anyhow::Result<()> {
                             stream_id
                         )
                         .execute(&pool)
-                        .await?
+                        .await?;
+                        info!(channel = %stream_id, "Broadcast is now LIVE");
                     }
                     StreamEvent::Stop { stream_id } => {
-                        debug!("Broadcast for \"{stream_id}\" is 'OFFLINE'");
                         sqlx::query!(
                             "UPDATE broadcasts SET status = 'offline', start_time = NULL WHERE channel_name = $1",
                             stream_id
                         )
                         .execute(&pool)
-                        .await?
+                        .await?;
+                        info!(channel = %stream_id, "Broadcast is now OFFLINE");
                     }
                 };
 
