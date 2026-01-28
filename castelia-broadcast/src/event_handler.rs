@@ -3,7 +3,8 @@ use std::env;
 use anyhow::{Context, anyhow};
 use castelia_events::stream_events::{STREAM_EVENT_KEY, StreamEvent};
 use redis::{
-    Commands,
+    AsyncCommands,
+    aio::ConnectionManager,
     streams::{StreamReadOptions, StreamReadReply},
 };
 use sqlx::Pool;
@@ -15,10 +16,11 @@ pub async fn handle_events(pool: Pool<sqlx::Postgres>) -> anyhow::Result<()> {
     let client = redis::Client::open(env::var("REDIS_URL").context("REDIS_URL is missing")?)
         .context("Failed to initialize redis client")?;
 
-    let mut conn = client.get_connection()?;
+    let mut conn = ConnectionManager::new(client).await?;
 
-    let result: redis::RedisResult<()> =
-        conn.xgroup_create_mkstream(STREAM_EVENT_KEY, BROADCAST_GROUP, "0");
+    let result: redis::RedisResult<()> = conn
+        .xgroup_create_mkstream(STREAM_EVENT_KEY, BROADCAST_GROUP, "0")
+        .await;
     match result {
         Ok(_) => info!("Consumer group created successfully."),
         Err(e) if e.code() == Some("BUSYGROUP") => {
@@ -31,7 +33,21 @@ pub async fn handle_events(pool: Pool<sqlx::Postgres>) -> anyhow::Result<()> {
         .block(5000);
 
     loop {
-        let reply: StreamReadReply = conn.xread_options(&[STREAM_EVENT_KEY], &[">"], &opts)?;
+        let reply = conn.xread_options(&[STREAM_EVENT_KEY], &[">"], &opts).await;
+
+        let reply: StreamReadReply = match reply {
+            Ok(r) => r,
+            Err(e) => {
+                if e.is_timeout() {
+                    continue;
+                }
+
+                // 3. For real errors (like Redis being down), log it and wait before retrying
+                error!("Redis connection error: {e}. Retrying in 2s...");
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                continue;
+            }
+        };
 
         for stream in reply.keys {
             for entry in stream.ids {
@@ -66,7 +82,9 @@ pub async fn handle_events(pool: Pool<sqlx::Postgres>) -> anyhow::Result<()> {
                     }
                 };
 
-                let _: () = conn.xack(STREAM_EVENT_KEY, BROADCAST_GROUP, &[&entry.id])?;
+                let _: () = conn
+                    .xack(STREAM_EVENT_KEY, BROADCAST_GROUP, &[&entry.id])
+                    .await?;
             }
         }
     }
