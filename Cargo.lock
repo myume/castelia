@@ -307,6 +307,7 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
+ "reqwest",
  "serde",
  "sqlx",
  "thiserror 2.0.17",

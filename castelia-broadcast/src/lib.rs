@@ -4,12 +4,12 @@ use axum::Router;
 use sqlx::Pool;
 use tower_http::trace::TraceLayer;
 
-mod event_handler;
 mod routes;
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: Pool<sqlx::Postgres>,
+    pub auth_url: String,
 }
 
 pub fn app(state: AppState, hls_dir: &Path) -> Router {

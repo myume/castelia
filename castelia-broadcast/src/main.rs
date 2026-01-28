@@ -10,8 +10,9 @@ async fn init_state() -> anyhow::Result<AppState> {
         .max_connections(5)
         .connect(&env::var("DATABASE_URL")?)
         .await?;
+    let auth_url = env::var("AUTH_URL")?;
 
-    Ok(AppState { db: pool })
+    Ok(AppState { db: pool, auth_url })
 }
 
 #[tokio::main]

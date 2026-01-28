@@ -2,7 +2,7 @@ use axum::{
     Json, Router,
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     routing::get,
 };
 use chrono::{DateTime, Utc};
@@ -32,6 +32,12 @@ enum GetBroadcastError {
 
     #[error("Could not fetch broadcast: {0}")]
     FetchBroadcast(sqlx::Error),
+
+    #[error("User with the username {0} could not be found")]
+    UserNotFound(String),
+
+    #[error("Failed to retrieve user")]
+    UserUnretrievable,
 }
 
 impl IntoResponse for GetBroadcastError {
@@ -43,14 +49,34 @@ impl IntoResponse for GetBroadcastError {
                 error!("{error}");
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
+            GetBroadcastError::UserNotFound(_) => StatusCode::NOT_FOUND.into_response(),
+            GetBroadcastError::UserUnretrievable => StatusCode::BAD_GATEWAY.into_response(),
         }
     }
 }
+
 #[derive(Serialize, Deserialize)]
 pub struct UpdateBroadcast {
     title: Option<String>,
-    status: Option<String>,
     private: Option<bool>,
+}
+
+enum GetUserError {
+    Unretrievable,
+    NotFound(String),
+}
+async fn user_exists(auth_url: &str, channel_name: &str) -> Result<(), GetUserError> {
+    let res = reqwest::get(format!("{auth_url}/user/{channel_name}"))
+        .await
+        .map_err(|_| GetUserError::Unretrievable)?;
+    if res.status().is_server_error() {
+        error!("Auth service returned error response");
+        return Err(GetUserError::Unretrievable);
+    }
+    if res.status().is_client_error() {
+        return Err(GetUserError::NotFound(channel_name.to_string()));
+    }
+    Ok(())
 }
 
 pub fn router(hls_dir: &std::path::Path) -> Router<AppState> {
@@ -66,29 +92,40 @@ async fn update_broadcast(
     State(state): State<AppState>,
     Path(channel_name): Path<String>,
     Json(req): Json<UpdateBroadcast>,
-) -> StatusCode {
+) -> Response {
+    let broadcast = match get_broadcast(State(state.clone()), Path(channel_name.clone())).await {
+        Ok(Json(broadcast)) => broadcast,
+        Err(e) => return e.into_response(),
+    };
+
     if let Err(e) = sqlx::query!(
-        "UPDATE broadcasts SET title = $1, status = $2, private = $3 
-        WHERE channel_name = $4",
-        req.title,
-        req.status,
-        req.private,
+        "UPDATE broadcasts SET title = $1, private = $2 
+        WHERE channel_name = $3",
+        req.title.unwrap_or(broadcast.title),
+        req.private.unwrap_or(broadcast.private),
         channel_name,
     )
     .execute(&state.db)
     .await
     {
         error!("Failed to update broadcast metadata: {e}");
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
-    StatusCode::OK
+    StatusCode::OK.into_response()
 }
 
 async fn get_broadcast(
     State(state): State<AppState>,
     Path(channel_name): Path<String>,
 ) -> Result<Json<Broadcast>, GetBroadcastError> {
+    if let Err(e) = user_exists(&state.auth_url, &channel_name).await {
+        return Err(match e {
+            GetUserError::Unretrievable => GetBroadcastError::UserUnretrievable,
+            GetUserError::NotFound(username) => GetBroadcastError::UserNotFound(username),
+        });
+    }
+
     let mut conn = state.db.acquire().await?;
     let mut tx = conn.begin().await?;
 

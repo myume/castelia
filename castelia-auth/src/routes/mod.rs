@@ -17,6 +17,7 @@ use crate::AppState;
 mod login;
 mod signup;
 pub mod stream_key;
+pub mod users;
 
 pub enum AuthError {
     InvalidToken,
@@ -66,6 +67,7 @@ pub fn router(state: AppState) -> Router {
         .route("/signup", post(signup::signup))
         .route("/streamkey", post(stream_key::verify_streamkey))
         .route("/streamkey", get(stream_key::get_streamkey))
+        .nest("/user", users::router())
         .with_state(state)
 }
 
