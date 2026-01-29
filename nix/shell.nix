@@ -9,6 +9,7 @@
   watchexec,
   ffmpeg,
   sqlx-cli,
+  nodejs,
 }:
 mkShell {
   packages = [
@@ -20,6 +21,7 @@ mkShell {
     watchexec
     ffmpeg
     sqlx-cli
+    nodejs
   ];
 
   env.RUST_SRC_PATH = "${rustPlatform.rustLibSrc}";
