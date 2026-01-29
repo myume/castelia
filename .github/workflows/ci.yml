@@ -42,10 +42,7 @@ jobs:
       - name: Run Migrations
         run: |
           cargo install sqlx-cli --no-default-features --features native-tls,postgres
-          for dir in $(find . -type d -name "migrations"); do
-              echo "Applying migrations in $dir..."
-              sqlx migrate run --source "$dir"
-          done
+          scripts/run_migrations.sh
       - run: cargo test --all-features
 
   lint:

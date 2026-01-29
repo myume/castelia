@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE broadcasts SET status = CASE \n                                WHEN status = 'offline' THEN 'unpublished' \n                                ELSE status \n                            END \n                            WHERE channel_name = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "78a35ca8480fcf308ff7e7d683f790ef1442cfe40893fea8474bcf63926abb6c"
+}

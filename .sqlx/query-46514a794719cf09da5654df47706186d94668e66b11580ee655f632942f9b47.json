@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE broadcasts SET title = $1, private = $2 \n        WHERE channel_name = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "46514a794719cf09da5654df47706186d94668e66b11580ee655f632942f9b47"
+}

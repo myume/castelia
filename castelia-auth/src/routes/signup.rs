@@ -71,9 +71,10 @@ impl IntoResponse for CreateUserError {
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
             CreateUserError::JsonRejection(json_rejection) => json_rejection.into_response(),
-            CreateUserError::InsertionError(error) => match error {
-                sqlx::Error::InvalidArgument(error) => {
-                    (StatusCode::BAD_REQUEST, error).into_response()
+            CreateUserError::InsertionError(error) => match error.as_database_error() {
+                Some(error) if error.is_unique_violation() => {
+                    error!("Creating duplicate user: {error}");
+                    (StatusCode::BAD_REQUEST, "User already exists").into_response()
                 }
                 _ => {
                     error!("Failed to insert user into database: {error}");

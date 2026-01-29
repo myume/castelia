@@ -30,6 +30,24 @@ services:
       - "traefik.http.middlewares.auth-strip.stripprefix.prefixes=/auth"
       - "traefik.http.routers.auth.middlewares=auth-strip"
 
+  broadcast:
+    build:
+      context: .
+      dockerfile: castelia-broadcast/Dockerfile
+    environment:
+      - HLS_OUTPUT_DIR=/hls
+      - DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@db:5432/$POSTGRES_DB
+      - AUTH_URL=http://auth:3000
+      - REDIS_URL=redis://redis
+    volumes:
+      - hls:/hls
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.broadcasts.rule=PathPrefix(`/broadcasts/`)"
+    depends_on:
+      - redis
+      - db
+
   ingest:
     build: 
       context: .
@@ -41,6 +59,8 @@ services:
       - "traefik.enable=true"
       - "traefik.tcp.routers.ingest-router.rule=HostSNI(`*`)"
       - "traefik.tcp.routers.ingest-router.entrypoints=rtmp"
+    depends_on:
+      - redis
 
   transcoder:
     build:

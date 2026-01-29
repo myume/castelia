@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE broadcasts SET status = 'published', start_time = $1 WHERE channel_name = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0a980f2e37c59afd3b5b44dfa02c6f1aa5e275886c716522ebdb484909040d6b"
+}
