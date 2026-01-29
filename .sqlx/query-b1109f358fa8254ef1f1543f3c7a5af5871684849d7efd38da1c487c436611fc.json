@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT channel_name, title, start_time, status, private FROM broadcasts WHERE channel_name = $1",
+  "query": "INSERT INTO broadcasts (channel_name) VALUES($1)\n                 RETURNING channel_name, title, start_time, status as \"status: StreamStatus\", private",
   "describe": {
     "columns": [
       {
@@ -20,8 +20,19 @@
       },
       {
         "ordinal": 3,
-        "name": "status",
-        "type_info": "Text"
+        "name": "status: StreamStatus",
+        "type_info": {
+          "Custom": {
+            "name": "stream_status",
+            "kind": {
+              "Enum": [
+                "offline",
+                "unpublished",
+                "published"
+              ]
+            }
+          }
+        }
       },
       {
         "ordinal": 4,
@@ -42,5 +53,5 @@
       false
     ]
   },
-  "hash": "94ef92dd1dbea4b6ad4d2b6c6376137783463be91a0c7edf264421fa1294f7cf"
+  "hash": "b1109f358fa8254ef1f1543f3c7a5af5871684849d7efd38da1c487c436611fc"
 }

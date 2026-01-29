@@ -17,12 +17,21 @@ use tracing::{debug, error};
 
 use crate::AppState;
 
+#[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
+#[sqlx(type_name = "stream_status", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum StreamStatus {
+    Offline,
+    Unpublished,
+    Published,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Broadcast {
     channel_name: String,
     title: String,
     start_time: Option<DateTime<Utc>>,
-    status: String,
+    status: StreamStatus,
     private: bool,
 }
 
@@ -116,7 +125,7 @@ async fn validate_broadcast(
     let channel_name = parts.get(1).ok_or(StatusCode::NOT_FOUND)?;
 
     let broadcast = sqlx::query!(
-        "SELECT status, private FROM broadcasts WHERE channel_name = $1",
+        r#"SELECT status as "status: StreamStatus", private FROM broadcasts WHERE channel_name = $1"#,
         channel_name
     )
     .fetch_optional(&state.db)
@@ -127,7 +136,7 @@ async fn validate_broadcast(
     })?
     .ok_or(StatusCode::NOT_FOUND)?;
 
-    if broadcast.private || broadcast.status != "published" {
+    if broadcast.private || broadcast.status != StreamStatus::Published {
         return Err(StatusCode::FORBIDDEN);
     }
 
@@ -230,7 +239,7 @@ async fn get_broadcast(
 
     let fetch_result = sqlx::query_as!(
         Broadcast,
-        "SELECT channel_name, title, start_time, status, private FROM broadcasts WHERE channel_name = $1",
+        r#"SELECT channel_name, title, start_time, status as "status: StreamStatus", private FROM broadcasts WHERE channel_name = $1"#,
         channel_name
     ).fetch_optional(&mut *tx).await;
 
@@ -240,8 +249,8 @@ async fn get_broadcast(
             debug!("broadcast not found for {channel_name}, initializing...");
             sqlx::query_as!(
                 Broadcast,
-                "INSERT INTO broadcasts (channel_name) VALUES($1)
-                 RETURNING channel_name, title, start_time, status, private",
+                r#"INSERT INTO broadcasts (channel_name) VALUES($1)
+                 RETURNING channel_name, title, start_time, status as "status: StreamStatus", private"#,
                 channel_name
             )
             .fetch_one(&mut *tx)
@@ -267,7 +276,7 @@ async fn start_broadcast(
     }
 
     let Ok(broadcast) = sqlx::query!(
-        "SELECT status FROM broadcasts WHERE channel_name = $1",
+        r#"SELECT status as "status: StreamStatus" FROM broadcasts WHERE channel_name = $1"#,
         channel_name
     )
     .fetch_one(&state.db)
@@ -276,7 +285,7 @@ async fn start_broadcast(
         return StatusCode::INTERNAL_SERVER_ERROR;
     };
 
-    if broadcast.status == "offline" {
+    if broadcast.status == StreamStatus::Offline {
         return StatusCode::BAD_REQUEST;
     }
 
@@ -306,7 +315,7 @@ async fn stop_broadcast(
     }
 
     let Ok(broadcast) = sqlx::query!(
-        "SELECT status FROM broadcasts WHERE channel_name = $1",
+        r#"SELECT status as "status: StreamStatus" FROM broadcasts WHERE channel_name = $1"#,
         channel_name
     )
     .fetch_one(&state.db)
@@ -315,7 +324,7 @@ async fn stop_broadcast(
         return StatusCode::INTERNAL_SERVER_ERROR;
     };
 
-    if broadcast.status != "published" {
+    if broadcast.status != StreamStatus::Published {
         return StatusCode::BAD_REQUEST;
     }
 

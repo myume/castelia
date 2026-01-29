@@ -52,7 +52,7 @@ pub async fn handle_events(pool: Pool<sqlx::Postgres>) -> anyhow::Result<()> {
                     StreamEvent::Start { stream_id, .. } => {
                         sqlx::query!(
                             "UPDATE broadcasts SET status = CASE 
-                                WHEN status = 'offline' THEN 'live' 
+                                WHEN status = 'offline' THEN 'unpublished' 
                                 ELSE status 
                             END 
                             WHERE channel_name = $1",
