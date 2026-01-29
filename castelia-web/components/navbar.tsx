@@ -23,11 +23,24 @@ export function NavBar() {
             </NavigationMenuLink>
           </NavigationMenuItem>
         </div>
-        <NavigationMenuItem>
-          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-            <Link href="/login">Login</Link>
-          </NavigationMenuLink>
-        </NavigationMenuItem>
+        <div className="flex gap-1">
+          <NavigationMenuItem>
+            <NavigationMenuLink
+              asChild
+              className={navigationMenuTriggerStyle()}
+            >
+              <Link href="/login">Login</Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuLink
+              asChild
+              className={navigationMenuTriggerStyle()}
+            >
+              <Link href="/signup">Sign Up</Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+        </div>
       </NavigationMenuList>
     </NavigationMenu>
   );
