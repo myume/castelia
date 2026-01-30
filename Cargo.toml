@@ -1,6 +1,6 @@
 [workspace]
 members = [ "castelia-*" ]
-exclude = [ "casetlia-web" ]
+exclude = [ "castelia-web" ]
 resolver = "3"
 
 [workspace.package]

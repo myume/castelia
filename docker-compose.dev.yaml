@@ -3,14 +3,12 @@ services:
     image: traefik:v3.6
     restart: unless-stopped
     command:
-      - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entryPoints.web.address=:8086"
       - "--entryPoints.rtmp.address=:1935"
       - "--accesslog=true"
     ports:
-      - "8080:8080"
       - "8086:8086"
       - "1935:1935"
     volumes:
