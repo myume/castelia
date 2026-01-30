@@ -3,18 +3,23 @@ services:
     image: traefik:v3.6
     restart: unless-stopped
     command:
-      - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entryPoints.web.address=:8086"
       - "--entryPoints.rtmp.address=:1935"
       - "--accesslog=true"
     ports:
-      - "8080:8080"
       - "8086:8086"
       - "1935:1935"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
+
+  web:
+    build: castelia-web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.web.entrypoints=web"
 
   auth:
     build: 

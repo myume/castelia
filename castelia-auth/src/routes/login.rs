@@ -1,11 +1,19 @@
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use axum_extra::extract::{CookieJar, cookie::Cookie};
 use chrono::{TimeDelta, Utc};
 use jsonwebtoken::{EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::{AppState, routes::Claims};
+use crate::{
+    AppState,
+    routes::{
+        RefreshClaims, TokenType,
+        jwt::{REFRESH_TOKEN_COOKIE, generate_access_token},
+        users::User,
+    },
+};
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
@@ -24,8 +32,8 @@ pub enum LoginError {
     #[error(transparent)]
     JWTEncoding(#[from] jsonwebtoken::errors::Error),
 
-    #[error(transparent)]
-    InvalidUserId(#[from] uuid::Error),
+    #[error("Could not set expiration for JWT")]
+    InvalidExpiration,
 }
 
 impl IntoResponse for LoginError {
@@ -44,31 +52,26 @@ impl IntoResponse for LoginError {
                 error!("Failed to encode JWT: {error}");
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
-            LoginError::InvalidUserId(error) => {
-                error!("Could not parse user id as uuid: {error}");
+            LoginError::InvalidExpiration => {
+                error!("{self}");
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
         }
     }
 }
 
-struct User {
-    id: String,
-    password: String,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
-pub struct LoginResponse {
-    access_token: String,
+pub struct AccessTokenResponse {
+    pub access_token: String,
 }
 
 pub async fn login(
     State(state): State<AppState>,
+    jar: CookieJar,
     Json(login): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, LoginError> {
-    let user = sqlx::query_as!(
-        User,
-        "SELECT id, password FROM users WHERE username = $1",
+) -> Result<impl IntoResponse, LoginError> {
+    let user = sqlx::query!(
+        "SELECT id, username, password FROM users WHERE username = $1",
         login.username
     )
     .fetch_one(&state.db)
@@ -82,20 +85,36 @@ pub async fn login(
         )
         .map_err(|_| LoginError::BadUsernameOrPassword)?;
 
-    let exp = Utc::now()
-        .checked_add_signed(TimeDelta::hours(1))
-        .unwrap_or(Utc::now());
-    let claims = Claims {
-        sub: uuid::Uuid::parse_str(&user.id)?,
-        exp: exp.timestamp() as usize,
-        username: login.username,
-    };
+    // generate access token
+    let access_token = generate_access_token(
+        User {
+            id: user.id,
+            username: user.username,
+        },
+        &state.encryption_key,
+    )?;
 
-    let access_token = jsonwebtoken::encode(
+    // generate refresh token
+    let exp = Utc::now()
+        .checked_add_signed(TimeDelta::days(7))
+        .ok_or(LoginError::InvalidExpiration)?;
+    let refresh_claims = RefreshClaims {
+        exp: exp.timestamp(),
+        sub: user.id,
+        token_type: TokenType::Refresh,
+    };
+    let refresh_token = jsonwebtoken::encode(
         &Header::default(),
-        &claims,
+        &refresh_claims,
         &EncodingKey::from_secret(state.encryption_key.as_ref()),
     )?;
 
-    Ok(Json(LoginResponse { access_token }))
+    let cookie = Cookie::build((REFRESH_TOKEN_COOKIE, refresh_token))
+        .secure(true)
+        .same_site(axum_extra::extract::cookie::SameSite::Strict)
+        .http_only(true)
+        .max_age(time::Duration::days(7))
+        .path("/");
+
+    Ok((jar.add(cookie), Json(AccessTokenResponse { access_token })))
 }
