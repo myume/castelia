@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, ReactNode, useContext, useState } from "react";
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 export type User = {
   id: string;
@@ -26,6 +32,50 @@ export const useAuth = () => {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    refreshAccessToken();
+  }, []);
+
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const interval = setInterval(
+      () => {
+        refreshAccessToken().catch((error) => {
+          console.error("Auto-refresh failed:", error);
+          setAccessToken(null);
+          setUser(null);
+        });
+      },
+      14 * 60 * 1000,
+    );
+
+    return () => clearInterval(interval);
+  }, [accessToken]);
+
+  const refreshAccessToken = async () => {
+    const response = await fetch("/auth/jwt/refresh", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      console.log("Could not refresh token");
+      return;
+    }
+
+    const data = await response.json();
+    setAccessToken(data.access_token);
+    if (!user) {
+      getUser(data.access_token);
+    }
+    console.log("refreshed access token");
+  };
 
   const login = async (username: string, password: string) => {
     const response = await fetch("/auth/login", {
