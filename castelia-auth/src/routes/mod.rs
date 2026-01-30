@@ -31,10 +31,25 @@ impl IntoResponse for AuthError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TokenType {
+    Refresh,
+    Access,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefreshClaims {
+    pub exp: i64,
+    pub sub: uuid::Uuid,
+    pub token_type: TokenType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
-    pub exp: usize,
+    pub exp: i64,
     pub sub: uuid::Uuid,
     pub username: String,
+    pub token_type: TokenType,
 }
 
 impl<S> FromRequestParts<S> for Claims
