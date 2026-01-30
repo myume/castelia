@@ -8,7 +8,11 @@ use tracing::error;
 
 use crate::{
     AppState,
-    routes::{Claims, RefreshClaims, TokenType},
+    routes::{
+        RefreshClaims, TokenType,
+        jwt::{REFRESH_TOKEN_COOKIE, generate_access_token},
+        users::User,
+    },
 };
 
 #[derive(Debug, Deserialize)]
@@ -57,8 +61,8 @@ impl IntoResponse for LoginError {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct LoginResponse {
-    access_token: String,
+pub struct AccessTokenResponse {
+    pub access_token: String,
 }
 
 pub async fn login(
@@ -67,7 +71,7 @@ pub async fn login(
     Json(login): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, LoginError> {
     let user = sqlx::query!(
-        "SELECT id, password FROM users WHERE username = $1",
+        "SELECT id, username, password FROM users WHERE username = $1",
         login.username
     )
     .fetch_one(&state.db)
@@ -82,19 +86,12 @@ pub async fn login(
         .map_err(|_| LoginError::BadUsernameOrPassword)?;
 
     // generate access token
-    let exp = Utc::now()
-        .checked_add_signed(TimeDelta::minutes(30))
-        .ok_or(LoginError::InvalidExpiration)?;
-    let claims = Claims {
-        sub: user.id,
-        exp: exp.timestamp(),
-        username: login.username,
-        token_type: TokenType::Access,
-    };
-    let access_token = jsonwebtoken::encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(state.encryption_key.as_ref()),
+    let access_token = generate_access_token(
+        User {
+            id: user.id,
+            username: user.username,
+        },
+        &state.encryption_key,
     )?;
 
     // generate refresh token
@@ -112,12 +109,12 @@ pub async fn login(
         &EncodingKey::from_secret(state.encryption_key.as_ref()),
     )?;
 
-    let cookie = Cookie::build(("refresh_token", refresh_token))
+    let cookie = Cookie::build((REFRESH_TOKEN_COOKIE, refresh_token))
         .secure(true)
         .same_site(axum_extra::extract::cookie::SameSite::Strict)
         .http_only(true)
         .max_age(time::Duration::days(7))
         .path("/");
 
-    Ok((jar.add(cookie), Json(LoginResponse { access_token })))
+    Ok((jar.add(cookie), Json(AccessTokenResponse { access_token })))
 }

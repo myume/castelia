@@ -1,5 +1,5 @@
 use axum::{
-    Json, RequestPartsExt, Router,
+    RequestPartsExt, Router,
     extract::{FromRef, FromRequestParts},
     http::{StatusCode, request::Parts},
     response::IntoResponse,
@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::AppState;
 
+mod jwt;
 mod login;
 mod signup;
 pub mod stream_key;
@@ -81,13 +82,10 @@ pub fn router(state: AppState) -> Router {
         .route("/signup", post(signup::signup))
         .route("/streamkey", post(stream_key::verify_streamkey))
         .route("/streamkey", get(stream_key::get_streamkey))
-        .route("/jwt", get(jwt))
+        .route("/jwt", get(jwt::jwt))
+        .route("/jwt/refresh", post(jwt::refresh))
         .nest("/user", users::router())
         .with_state(state)
-}
-
-async fn jwt(claim: Claims) -> Json<Claims> {
-    Json(claim)
 }
 
 async fn health_check() -> StatusCode {

@@ -10,6 +10,7 @@ use crate::AppState;
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
+    pub id: uuid::Uuid,
     pub username: String,
 }
 
@@ -23,7 +24,7 @@ async fn get_user(
 ) -> Result<Json<User>, StatusCode> {
     match sqlx::query_as!(
         User,
-        "SELECT username FROM users WHERE username = $1",
+        "SELECT id, username FROM users WHERE username = $1",
         username
     )
     .fetch_optional(&state.db)
