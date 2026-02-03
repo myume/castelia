@@ -107,6 +107,10 @@ export default function GoLivePage() {
       console.error("Failed to update stream status");
       setError(await response.text());
     }
+
+    setBroadcast((broadcast) =>
+      broadcast ? { ...broadcast, status } : broadcast,
+    );
   };
 
   return (

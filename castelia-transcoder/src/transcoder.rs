@@ -74,7 +74,6 @@ impl TranscoderService {
         command
             .arg("-loglevel")
             .arg("error")
-            .arg("-re")
             .arg("-i")
             .arg(format!("{rtmp_url}/{stream_id}"))
             .arg("-c:v")
