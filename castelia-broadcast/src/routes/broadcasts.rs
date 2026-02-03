@@ -269,10 +269,10 @@ async fn start_broadcast(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(channel_name): Path<String>,
-) -> StatusCode {
+) -> impl IntoResponse {
     let status = authorize_operation(&state.auth_url, &channel_name, &headers, &state.client).await;
     if !status.is_success() {
-        return status;
+        return (status, "Not authorized");
     }
 
     let Ok(broadcast) = sqlx::query!(
@@ -282,11 +282,11 @@ async fn start_broadcast(
     .fetch_one(&state.db)
     .await
     else {
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to update");
     };
 
     if broadcast.status == StreamStatus::Offline {
-        return StatusCode::BAD_REQUEST;
+        return (StatusCode::BAD_REQUEST, "Stream is offline");
     }
 
     if let Err(e) = sqlx::query!(
@@ -298,20 +298,23 @@ async fn start_broadcast(
     .await
     {
         error!("Failed to update broadcast status: {e}");
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to update broadcast status",
+        );
     };
 
-    StatusCode::OK
+    (StatusCode::OK, "Success")
 }
 
 async fn stop_broadcast(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(channel_name): Path<String>,
-) -> StatusCode {
+) -> impl IntoResponse {
     let status = authorize_operation(&state.auth_url, &channel_name, &headers, &state.client).await;
     if !status.is_success() {
-        return status;
+        return (status, "Not authorized");
     }
 
     let Ok(broadcast) = sqlx::query!(
@@ -321,11 +324,11 @@ async fn stop_broadcast(
     .fetch_one(&state.db)
     .await
     else {
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to update");
     };
 
     if broadcast.status != StreamStatus::Published {
-        return StatusCode::BAD_REQUEST;
+        return (StatusCode::BAD_REQUEST, "Stream is already unpublished");
     }
 
     if let Err(e) = sqlx::query!(
@@ -341,8 +344,11 @@ async fn stop_broadcast(
     .await
     {
         error!("Failed to update broadcast status: {e}");
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to update broadcast status",
+        );
     };
 
-    StatusCode::OK
+    (StatusCode::OK, "Success")
 }

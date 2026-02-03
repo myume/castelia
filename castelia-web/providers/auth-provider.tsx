@@ -17,6 +17,7 @@ export type AuthContextType = {
   accessToken: string | null;
   login: (username: string, password: string) => Promise<void>;
   user: User | null;
+  loading: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,6 +33,7 @@ export const useAuth = () => {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     refreshAccessToken();
@@ -46,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("Auto-refresh failed:", error);
           setAccessToken(null);
           setUser(null);
+          setLoading(false);
         });
       },
       14 * 60 * 1000,
@@ -55,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [accessToken]);
 
   const refreshAccessToken = async () => {
+    setLoading(true);
     const response = await fetch("/auth/jwt/refresh", {
       method: "POST",
       headers: {
@@ -66,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!response.ok) {
       console.log("Could not refresh token");
+      setLoading(false);
       return;
     }
 
@@ -75,9 +80,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       getUser(data.access_token);
     }
     console.log("refreshed access token");
+
+    setLoading(false);
   };
 
   const login = async (username: string, password: string) => {
+    setLoading(true);
+
     const response = await fetch("/auth/login", {
       method: "POST",
       headers: {
@@ -95,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(data.access_token);
 
     await getUser(data.access_token);
+    setLoading(false);
   };
 
   const getUser = async (jwt: string) => {
@@ -115,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(user);
   };
 
-  const value = { accessToken, login, user };
+  const value = { accessToken, login, user, loading };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
