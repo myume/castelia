@@ -35,7 +35,7 @@ export default function GoLivePage() {
   const [broadcast, setBroadcast] = useState<Broadcast>();
   const [error, setError] = useState("");
 
-  const fetchBroacast = async () => {
+  const fetchBroadcast = async () => {
     const response = await fetch(`/broadcasts/${user?.username}`, {
       method: "GET",
       headers: {
@@ -59,10 +59,10 @@ export default function GoLivePage() {
       router.replace("/login");
       return;
     }
-    fetchBroacast();
+    fetchBroadcast();
   }, [user]);
 
-  const handleSubmit = async (status: StreamStatus) => {
+  const handleSubmit = async (status?: StreamStatus) => {
     setError("");
     const update = await fetch(`/broadcasts/${user?.username}`, {
       method: "PATCH",
@@ -77,6 +77,10 @@ export default function GoLivePage() {
 
     if (!update.ok) {
       console.error("Failed to update broadcast");
+      return;
+    }
+
+    if (!status) {
       return;
     }
 
@@ -117,7 +121,7 @@ export default function GoLivePage() {
     <div className="flex justify-center items-center">
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle>Create a new broadcast</CardTitle>
+          <CardTitle>Start Stream</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
@@ -164,14 +168,31 @@ export default function GoLivePage() {
           )}
         </CardContent>
         <CardFooter className="flex justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={() => handleSubmit(StreamStatus.Unpublished)}
-          >
-            Save as Unpublished
+          <Button variant="outline" onClick={() => handleSubmit()}>
+            Update Stream
           </Button>
-          <Button onClick={() => handleSubmit(StreamStatus.Published)}>
-            Go Live
+          <Button
+            disabled={broadcast?.status === StreamStatus.Offline}
+            className={
+              broadcast?.status === StreamStatus.Unpublished
+                ? "bg-green-500"
+                : broadcast?.status === StreamStatus.Published
+                  ? "bg-red-400"
+                  : ""
+            }
+            onClick={() =>
+              handleSubmit(
+                broadcast?.status === StreamStatus.Unpublished
+                  ? StreamStatus.Published
+                  : StreamStatus.Unpublished,
+              )
+            }
+          >
+            {broadcast?.status === StreamStatus.Unpublished
+              ? "Go Live"
+              : broadcast?.status === StreamStatus.Published
+                ? "End Stream"
+                : "Offline"}
           </Button>
         </CardFooter>
       </Card>
