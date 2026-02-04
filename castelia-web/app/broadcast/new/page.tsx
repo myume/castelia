@@ -14,20 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
-
-enum StreamStatus {
-  Offline = "offline",
-  Unpublished = "unpublished",
-  Published = "published",
-}
-
-interface Broadcast {
-  channel_name: string;
-  title: string;
-  start_time?: Date;
-  status: StreamStatus;
-  private: boolean;
-}
+import { Broadcast, StreamStatus } from "@/lib/types";
 
 export default function GoLivePage() {
   const { user, loading, accessToken } = useAuth();
