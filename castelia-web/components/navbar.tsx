@@ -1,5 +1,4 @@
 "use client";
-
 import Link from "next/link";
 import {
   NavigationMenu,
@@ -7,6 +6,7 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
+  NavigationMenuContent,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import { useAuth } from "@/providers/auth-provider";
@@ -14,9 +14,9 @@ import { useAuth } from "@/providers/auth-provider";
 export function NavBar() {
   const { user } = useAuth();
   return (
-    <NavigationMenu>
-      <NavigationMenuList className="flex justify-between w-screen p-1">
-        <div>
+    <div className="flex justify-between w-screen p-1">
+      <NavigationMenu>
+        <NavigationMenuList>
           <NavigationMenuItem>
             <NavigationMenuLink
               asChild
@@ -25,9 +25,12 @@ export function NavBar() {
               <Link href="/">Browse</Link>
             </NavigationMenuLink>
           </NavigationMenuItem>
-        </div>
-        {!user ? (
-          <div className="flex gap-1">
+        </NavigationMenuList>
+      </NavigationMenu>
+
+      {!user ? (
+        <NavigationMenu>
+          <NavigationMenuList className="flex gap-1">
             <NavigationMenuItem>
               <NavigationMenuLink
                 asChild
@@ -44,15 +47,30 @@ export function NavBar() {
                 <Link href="/signup">Sign Up</Link>
               </NavigationMenuLink>
             </NavigationMenuItem>
-          </div>
-        ) : (
-          <div>
+          </NavigationMenuList>
+        </NavigationMenu>
+      ) : (
+        <NavigationMenu>
+          <NavigationMenuList>
             <NavigationMenuItem>
               <NavigationMenuTrigger>{user.username}</NavigationMenuTrigger>
+              <NavigationMenuContent>
+                <ul>
+                  <li>
+                    <NavigationMenuLink asChild>
+                      <Link href="/live">
+                        <div className="text-xs leading-none whitespace-nowrap">
+                          Go Live
+                        </div>
+                      </Link>
+                    </NavigationMenuLink>
+                  </li>
+                </ul>
+              </NavigationMenuContent>
             </NavigationMenuItem>
-          </div>
-        )}
-      </NavigationMenuList>
-    </NavigationMenu>
+          </NavigationMenuList>
+        </NavigationMenu>
+      )}
+    </div>
   );
 }
