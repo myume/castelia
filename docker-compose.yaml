@@ -50,7 +50,7 @@ services:
       - hls:/hls
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.broadcasts.rule=PathPrefix(`/broadcasts/`)"
+      - "traefik.http.routers.broadcasts.rule=PathPrefix(`/broadcasts`)"
     depends_on:
       - redis
       - db

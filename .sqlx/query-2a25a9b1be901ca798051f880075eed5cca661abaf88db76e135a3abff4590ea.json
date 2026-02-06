@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT channel_name, status as \"status: StreamStatus\", title, start_time, private \n           FROM broadcasts\n           WHERE private = false AND status = 'published'\n           LIMIT $1 OFFSET $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "channel_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "status: StreamStatus",
+        "type_info": {
+          "Custom": {
+            "name": "stream_status",
+            "kind": {
+              "Enum": [
+                "offline",
+                "unpublished",
+                "published"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "start_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "private",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "2a25a9b1be901ca798051f880075eed5cca661abaf88db76e135a3abff4590ea"
+}

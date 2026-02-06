@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, Request, State},
+    extract::{Path, Query, Request, State},
     http::{HeaderMap, HeaderValue, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -15,7 +15,10 @@ use tower::ServiceBuilder;
 use tower_http::services::ServeDir;
 use tracing::{debug, error};
 
-use crate::AppState;
+use crate::{
+    AppState,
+    routes::{PagedResponse, Pagination, PaginationMeta},
+};
 
 #[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
 #[sqlx(type_name = "stream_status", rename_all = "lowercase")]
@@ -107,6 +110,7 @@ pub fn router(hls_dir: &std::path::Path, state: &AppState) -> Router<AppState> {
         .service(ServeDir::new(hls_dir));
 
     Router::new()
+        .route("/broadcasts", get(list_broadcasts))
         .route("/broadcasts/{channel}/publish", post(start_broadcast))
         .route("/broadcasts/{channel}/unpublish", post(stop_broadcast))
         .route(
@@ -351,4 +355,61 @@ async fn stop_broadcast(
     };
 
     (StatusCode::OK, "Success")
+}
+
+async fn list_broadcasts(
+    State(state): State<AppState>,
+    Query(pagination): Query<Pagination>,
+) -> Result<Json<PagedResponse<Broadcast>>, GetBroadcastError> {
+    let total = sqlx::query!(r#"SELECT COUNT(*) as "count!" FROM broadcasts"#)
+        .fetch_one(&state.db)
+        .await?
+        .count as usize;
+
+    let data = sqlx::query_as!(
+        Broadcast,
+        r#"SELECT channel_name, status as "status: StreamStatus", title, start_time, private 
+           FROM broadcasts
+           WHERE private = false AND status = 'published'
+           LIMIT $1 OFFSET $2"#,
+        pagination.limit as i64,
+        pagination.offset as i64
+    )
+    .fetch_all(&state.db)
+    .await
+    .map_err(GetBroadcastError::FetchBroadcast)?;
+
+    let next = if total > pagination.offset + pagination.limit {
+        Some(format!(
+            "/broadcasts?offset={}&limit={}",
+            pagination.offset + pagination.limit,
+            pagination
+                .limit
+                .min(total - pagination.offset - pagination.limit)
+        ))
+    } else {
+        None
+    };
+
+    let prev = if pagination.offset > 0 {
+        Some(format!(
+            "/broadcasts?offset={}&limit={}",
+            pagination.offset.saturating_sub(pagination.limit),
+            pagination.limit
+        ))
+    } else {
+        None
+    };
+
+    let response = PagedResponse {
+        data,
+        meta: PaginationMeta {
+            total,
+            pagination,
+            next,
+            prev,
+        },
+    };
+
+    Ok(Json(response))
 }
