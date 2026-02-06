@@ -59,7 +59,7 @@ export default function PlayerPage({
   }
 
   return (
-    <div>
+    <div className="p-10">
       {broadcast.status !== StreamStatus.Published ? (
         <div>Broadcast is offline</div>
       ) : (
@@ -68,7 +68,7 @@ export default function PlayerPage({
       <div className="p-2">
         <h1 className="text-bold">{broadcast.title}</h1>
         <h2>{broadcast.channel_name}</h2>
-        <h2>started: {broadcast.start_time}</h2>
+        <h2>started at {broadcast.start_time}</h2>
       </div>
     </div>
   );

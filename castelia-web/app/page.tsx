@@ -1,7 +1,7 @@
 "use client";
 
-import { Broadcast } from "@/lib/types";
-import Link from "next/link";
+import { BroadcastCard } from "@/components/broadcast-card";
+import { Broadcast, StreamStatus } from "@/lib/types";
 import { useCallback, useEffect, useState } from "react";
 
 export default function Home() {
@@ -30,15 +30,10 @@ export default function Home() {
   return (
     <div>
       {broadcasts.length > 0 ? (
-        <ul className="grid grid-cols-3 gap-2 w-screen p-5">
+        <ul className="grid grid-cols-3 gap-4 w-screen h-screen p-10">
           {broadcasts.map((broadcast) => (
-            <li>
-              <Link href={`/channel/${broadcast.channel_name}`}>
-                <div>
-                  <h2>{broadcast.title}</h2>
-                  <h3>{broadcast.channel_name}</h3>
-                </div>
-              </Link>
+            <li key={broadcast.channel_name}>
+              <BroadcastCard broadcast={broadcast} />
             </li>
           ))}
         </ul>
