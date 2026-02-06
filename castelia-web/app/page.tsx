@@ -1,7 +1,9 @@
 "use client";
 
 import { BroadcastCard } from "@/components/broadcast-card";
-import { Broadcast, StreamStatus } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Broadcast } from "@/lib/types";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 export default function Home() {
@@ -30,13 +32,35 @@ export default function Home() {
   return (
     <div>
       {broadcasts.length > 0 ? (
-        <ul className="grid grid-cols-3 gap-4 w-screen h-screen p-10">
-          {broadcasts.map((broadcast) => (
-            <li key={broadcast.channel_name}>
-              <BroadcastCard broadcast={broadcast} />
-            </li>
-          ))}
-        </ul>
+        <div className="w-screen p-10">
+          <ul className="grid grid-cols-3 gap-4 w-full h-screen">
+            {broadcasts.map((broadcast) => (
+              <li key={broadcast.channel_name}>
+                <BroadcastCard broadcast={broadcast} />
+              </li>
+            ))}
+          </ul>
+          <div className="flex justify-center gap-5">
+            <Button
+              disabled={!prevPage}
+              onClick={() => {
+                prevPage && setPage(prevPage);
+              }}
+            >
+              <ChevronLeft />
+              Prev
+            </Button>
+            <Button
+              disabled={!nextPage}
+              onClick={() => {
+                nextPage && setPage(nextPage);
+              }}
+            >
+              Next
+              <ChevronRight />
+            </Button>
+          </div>
+        </div>
       ) : (
         <h1>There are no broadcasts</h1>
       )}
