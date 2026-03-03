@@ -123,11 +123,16 @@ export default function GoLivePage() {
               </Label>
               <Input
                 id="title"
-                value={broadcast?.title || ""}
+                value={broadcast?.title ?? ""}
                 onChange={(e) =>
                   setBroadcast((cast) => {
                     if (!cast) {
-                      return cast;
+                      return {
+                        title: e.target.value,
+                        channel_name: user?.username || "",
+                        status: StreamStatus.Offline,
+                        private: false,
+                      };
                     }
 
                     return { ...cast, title: e.target.value };
@@ -137,6 +142,12 @@ export default function GoLivePage() {
                 className="h-11"
               />
             </div>
+            {broadcast?.status === StreamStatus.Offline && (
+              <div className="p-3 bg-primary/10 border border-primary/20 rounded-md text-sm text-primary font-medium animate-in">
+                Your stream is currently offline. Please start your broadcast in
+                your streaming software (like OBS) first.
+              </div>
+            )}
             <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border border-muted/50">
               <Input
                 id="private"

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/navigation-menu";
 import { useAuth } from "@/providers/auth-provider";
 
-import { Search, User } from "lucide-react";
+import { Search, Settings, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export function NavBar() {
@@ -70,7 +70,7 @@ export function NavBar() {
             >
               Go Live
             </Link>
-            <NavigationMenu>
+            <NavigationMenu viewport={false}>
               <NavigationMenuList>
                 <NavigationMenuItem>
                   <NavigationMenuTrigger className="bg-transparent p-0 hover:bg-transparent focus:bg-transparent data-[state=open]:bg-transparent">
@@ -78,7 +78,7 @@ export function NavBar() {
                       {user.username.charAt(0).toUpperCase()}
                     </div>
                   </NavigationMenuTrigger>
-                  <NavigationMenuContent>
+                  <NavigationMenuContent className="right-0 left-auto translate-x-0">
                     <ul className="grid w-[220px] gap-1 p-2 bg-card border border-border shadow-xl">
                       <div className="px-3 py-2 border-b border-border mb-1">
                         <p className="text-sm font-bold text-primary truncate">
@@ -106,13 +106,10 @@ export function NavBar() {
                             href="/settings"
                             className="flex w-full items-center gap-2 rounded-md p-2.5 text-xs font-bold hover:bg-muted transition-colors"
                           >
-                            {
-                              //cosmetic search bar lol
-                              <Search
-                                size={14}
-                                className="text-muted-foreground"
-                              />
-                            }
+                            <Settings
+                              size={14}
+                              className="text-muted-foreground"
+                            />
                             Settings
                           </Link>
                         </NavigationMenuLink>
@@ -129,9 +126,11 @@ export function NavBar() {
             </NavigationMenu>
           </div>
         )}
-        <button className="p-1.5 hover:bg-muted rounded-md transition-colors">
-          <User size={20} className="text-muted-foreground" />
-        </button>
+        {!user && (
+          <button className="p-1.5 hover:bg-muted rounded-md transition-colors">
+            <User size={20} className="text-muted-foreground" />
+          </button>
+        )}
       </div>
     </div>
   );
