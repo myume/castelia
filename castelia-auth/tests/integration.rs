@@ -223,16 +223,9 @@ fn test_get_streamkey(pool: PgPool) {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let stream_key = String::from_utf8(
-        response
-            .into_body()
-            .collect()
-            .await
-            .unwrap()
-            .to_bytes()
-            .to_vec(),
-    )
-    .unwrap();
+    let stream_key = response.into_body().collect().await.unwrap().to_bytes();
+    let stream_key: serde_json::Value = serde_json::from_slice(&stream_key).unwrap();
+    let stream_key = stream_key["stream_key"].as_str().unwrap();
     assert!(
         stream_key.starts_with("cast_"),
         "Bad stream key {stream_key}"
@@ -290,18 +283,11 @@ fn test_verify_stream_key(pool: PgPool) {
     let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     let response = get_stream_key(body["access_token"].as_str().unwrap(), &state).await;
-    let stream_key = String::from_utf8(
-        response
-            .into_body()
-            .collect()
-            .await
-            .unwrap()
-            .to_bytes()
-            .to_vec(),
-    )
-    .unwrap();
+    let stream_key = response.into_body().collect().await.unwrap().to_bytes();
+    let stream_key: serde_json::Value = serde_json::from_slice(&stream_key).unwrap();
+    let stream_key = stream_key["stream_key"].as_str().unwrap();
 
-    let verify_response = verify_stream_key(&stream_key, &state).await;
+    let verify_response = verify_stream_key(stream_key, &state).await;
     assert_eq!(verify_response.status(), StatusCode::OK);
 
     let body = verify_response
