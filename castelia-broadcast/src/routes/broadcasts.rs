@@ -110,7 +110,7 @@ pub fn router(hls_dir: &std::path::Path, state: &AppState) -> Router<AppState> {
         .service(ServeDir::new(hls_dir));
 
     Router::new()
-        .route("/broadcasts", get(list_broadcasts))
+        .route("/broadcasts/list", get(list_broadcasts))
         .route("/broadcasts/{channel}/publish", post(start_broadcast))
         .route("/broadcasts/{channel}/unpublish", post(stop_broadcast))
         .route(

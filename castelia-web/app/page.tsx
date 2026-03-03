@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 export default function Home() {
-  const [page, setPage] = useState(`/broadcasts?offset=0&limit=20`);
+  const [page, setPage] = useState(`/broadcasts/list?offset=0&limit=20`);
   const [nextPage, setNextPage] = useState<string>();
   const [prevPage, setPrevPage] = useState<string>();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
