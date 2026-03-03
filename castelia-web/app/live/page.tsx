@@ -105,18 +105,25 @@ export default function GoLivePage() {
   };
 
   return (
-    <div className="flex justify-center items-center">
-      <Card className="w-full max-w-lg">
-        <CardHeader>
-          <CardTitle>Start Stream</CardTitle>
+    <div className="container mx-auto px-4 py-12 flex justify-center items-center min-h-[calc(100vh-64px)]">
+      <Card className="w-full max-w-lg shadow-lg border-muted">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold tracking-tight text-center">
+            Start Your Stream
+          </CardTitle>
+          <CardDescription className="text-center">
+            Configure your broadcast details before going live.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="title">Title</Label>
+              <Label htmlFor="title" className="font-semibold">
+                Broadcast Title
+              </Label>
               <Input
                 id="title"
-                value={broadcast?.title}
+                value={broadcast?.title || ""}
                 onChange={(e) =>
                   setBroadcast((cast) => {
                     if (!cast) {
@@ -127,13 +134,14 @@ export default function GoLivePage() {
                   })
                 }
                 placeholder="My awesome stream"
+                className="h-11"
               />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border border-muted/50">
               <Input
                 id="private"
                 type="checkbox"
-                checked={broadcast?.private}
+                checked={broadcast?.private || false}
                 onChange={(e) =>
                   setBroadcast((cast) => {
                     if (!cast) {
@@ -143,44 +151,64 @@ export default function GoLivePage() {
                     return { ...cast, private: e.target.checked };
                   })
                 }
-                className="size-4"
+                className="size-5 rounded cursor-pointer"
               />
-              <Label htmlFor="private">Private broadcast</Label>
+              <div className="grid gap-1">
+                <Label
+                  htmlFor="private"
+                  className="font-medium cursor-pointer leading-none"
+                >
+                  Private broadcast
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Only people with the link can view your stream.
+                </p>
+              </div>
             </div>
           </div>
           {error && (
-            <CardDescription className="text-red-500 mt-5">
+            <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md border border-destructive/20">
               {error}
-            </CardDescription>
+            </div>
           )}
         </CardContent>
-        <CardFooter className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => handleSubmit()}>
-            Update Stream
-          </Button>
-          <Button
-            disabled={broadcast?.status === StreamStatus.Offline}
-            className={
-              broadcast?.status === StreamStatus.Unpublished
-                ? "bg-green-500"
-                : broadcast?.status === StreamStatus.Published
-                  ? "bg-red-400"
-                  : ""
-            }
-            onClick={() =>
-              handleSubmit(
+        <CardFooter className="flex flex-col gap-3 pt-2">
+          <div className="flex gap-3 w-full">
+            <Button
+              variant="outline"
+              onClick={() => handleSubmit()}
+              className="flex-1 h-11"
+            >
+              Save Settings
+            </Button>
+            <Button
+              disabled={broadcast?.status === StreamStatus.Offline}
+              className={`flex-1 h-11 font-semibold transition-all duration-300 ${
                 broadcast?.status === StreamStatus.Unpublished
-                  ? StreamStatus.Published
-                  : StreamStatus.Unpublished,
-              )
-            }
-          >
-            {broadcast?.status === StreamStatus.Unpublished
-              ? "Go Live"
-              : broadcast?.status === StreamStatus.Published
-                ? "End Stream"
-                : "Offline"}
-          </Button>
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : broadcast?.status === StreamStatus.Published
+                    ? "bg-red-600 hover:bg-red-700 text-white"
+                    : ""
+              }`}
+              onClick={() =>
+                handleSubmit(
+                  broadcast?.status === StreamStatus.Unpublished
+                    ? StreamStatus.Published
+                    : StreamStatus.Unpublished,
+                )
+              }
+            >
+              {broadcast?.status === StreamStatus.Unpublished
+                ? "Go Live"
+                : broadcast?.status === StreamStatus.Published
+                  ? "End Stream"
+                  : "Offline"}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground text-center">
+            Make sure your streaming software is configured with your stream
+            key.
+          </p>
         </CardFooter>
       </Card>
     </div>

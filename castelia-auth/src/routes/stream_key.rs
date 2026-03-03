@@ -75,10 +75,15 @@ impl IntoResponse for StreamKeyError {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetStreamKeyResponse {
+    pub stream_key: String,
+}
+
 pub async fn get_streamkey(
     State(state): State<AppState>,
     claims: Claims,
-) -> Result<String, StreamKeyError> {
+) -> Result<Json<GetStreamKeyResponse>, StreamKeyError> {
     struct StreamKey {
         stream_key: Vec<u8>,
         nonce: Vec<u8>,
@@ -95,7 +100,7 @@ pub async fn get_streamkey(
     let stream_key = decrypt_stream_key(&row.stream_key, &row.nonce, &state.encryption_key)
         .map_err(StreamKeyError::DecryptError)?;
 
-    Ok(stream_key)
+    Ok(Json(GetStreamKeyResponse { stream_key }))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

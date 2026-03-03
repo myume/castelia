@@ -27,16 +27,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background text-foreground dark`}
       >
         <AuthProvider>
-          <div className="flex flex-col h-screen">
-            <div>
+          <div className="relative flex min-h-screen flex-col overflow-x-hidden">
+            <header className="sticky top-0 z-50 w-full bg-card border-b border-border shadow-sm">
               <NavBar />
-            </div>
-            <main className="grow flex items-center justify-center">
-              {children}
-            </main>
+            </header>
+            <main className="flex-1 bg-background">{children}</main>
           </div>
         </AuthProvider>
       </body>
