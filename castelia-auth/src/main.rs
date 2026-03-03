@@ -12,6 +12,8 @@ async fn init_state() -> anyhow::Result<AppState> {
         .connect(&db_url)
         .await?;
 
+    sqlx::migrate!().set_ignore_missing(true).run(&pool).await?;
+
     let encryption_key =
         base64::engine::general_purpose::STANDARD.decode(env::var("ENCRYPTION_KEY")?)?;
 

@@ -10,6 +10,9 @@ async fn init_state() -> anyhow::Result<AppState> {
         .max_connections(5)
         .connect(&env::var("DATABASE_URL")?)
         .await?;
+
+    sqlx::migrate!().set_ignore_missing(true).run(&pool).await?;
+
     let auth_url = env::var("AUTH_URL")?;
     let client = reqwest::Client::new();
 
