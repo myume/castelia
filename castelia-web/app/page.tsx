@@ -12,11 +12,14 @@ export default function Home() {
   const [nextPage, setNextPage] = useState<string>();
   const [prevPage, setPrevPage] = useState<string>();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchBroadcasts = useCallback(async (url: string) => {
+    setIsLoading(true);
     const response = await fetch(url);
     if (!response.ok) {
       console.log("Failed to list broadcasts");
+      setIsLoading(false);
       return;
     }
 
@@ -24,6 +27,7 @@ export default function Home() {
     setBroadcasts(data.data);
     setNextPage(data.next);
     setPrevPage(data.prev);
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -31,18 +35,25 @@ export default function Home() {
   }, [page, fetchBroadcasts]);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {broadcasts.length > 0 ? (
-        <div className="space-y-8">
+    <div className="container mx-auto px-4 py-8 flex flex-col min-h-[calc(100vh-3rem)]">
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center grow space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="text-muted-foreground">Loading streams...</p>
+        </div>
+      ) : broadcasts.length > 0 ? (
+        <div className="flex flex-col grow space-y-8">
           <h1 className="text-3xl font-bold tracking-tight">Live Streams</h1>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {broadcasts.map((broadcast) => (
-              <li key={broadcast.channel_name}>
-                <BroadcastCard broadcast={broadcast} />
-              </li>
-            ))}
-          </ul>
-          <div className="flex justify-center items-center gap-4 pt-4">
+          <div className="grow">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {broadcasts.map((broadcast) => (
+                <li key={broadcast.channel_name}>
+                  <BroadcastCard broadcast={broadcast} />
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex justify-center items-center gap-4 pt-4 mt-auto">
             <Button
               variant="outline"
               disabled={!prevPage}
@@ -71,7 +82,7 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+        <div className="flex flex-col items-center justify-center grow space-y-4">
           <h1 className="text-2xl font-semibold text-muted-foreground">
             No active broadcasts
           </h1>
