@@ -2,6 +2,8 @@
 
 self-hosted video broadcasting.
 
+<img width="4110" height="2376" alt="image" src="https://github.com/user-attachments/assets/cb60994f-9ad7-4455-aa9e-f1527adea336" />
+
 ## Usage
 
 Simply run `docker compose up` to start the service. The entrypoint will be on
