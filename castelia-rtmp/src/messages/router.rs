@@ -38,6 +38,7 @@ pub enum RouteError {
 #[derive(Default)]
 pub struct MessageStream {
     message_streams: HashMap<u32, NetStream>,
+    curr_ms_id: u32,
 }
 
 impl MessageStream {
@@ -46,13 +47,9 @@ impl MessageStream {
     }
 
     pub fn create_stream(&mut self) -> u32 {
-        // We're going to use a naive implementation where we just keep appending new streams to
-        // the hashmap which increments the stream id. This will be an issue if there's enough
-        // streams to overflow a u32. We're going to assume that it's highly unlikely and dumb if
-        // it happens.
-        //
         // + 1 to skip message stream 0 (control stream)
-        let message_stream_id = self.message_streams.len() as u32 + 1;
+        self.curr_ms_id += 1;
+        let message_stream_id = self.curr_ms_id + 1;
         self.message_streams
             .insert(message_stream_id, NetStream::new(message_stream_id));
         message_stream_id
